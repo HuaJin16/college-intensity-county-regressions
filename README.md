@@ -31,9 +31,9 @@ Main regressor:
 
 Unless explicitly changed:
 
-- ACS 5-year: 2018-2022
-- QCEW annual county: 2022
-- IPEDS institution-level enrollment/location: 2022 (or nearest available, flagged)
+- ACS 5-year: 2020-2024
+- QCEW annual county: 2024 (or nearest available, flagged)
+- IPEDS institution-level enrollment/location: 2024 (or nearest available, flagged)
 
 ## Data sources
 
@@ -43,6 +43,19 @@ Unless explicitly changed:
 - County FIPS / metro crosswalk
 
 Note: exact raw field names can vary by release. Uncertain fields should be labeled with `TODO_VERIFY_*`.
+
+## ACS pull variables (initial extraction)
+
+Use the Census ACS API to extract county-level variables used directly in baseline models or robustness checks:
+
+- `population`: `B01003_001E`
+- `median_gross_rent`: `B25064_001E`
+- `median_household_income`: `B19013_001E`
+- `poverty_rate`: `B17001_002E / B17001_001E`
+- `renter_share`: `B25003_003E / (B25003_002E + B25003_003E)`
+- `vacancy_rate`: `B25002_003E / B25002_001E` (vacancy proxy)
+- `vacancy_proxy`: alias of `vacancy_rate`
+- `ba_share`: `(B15003_022E + B15003_023E + B15003_024E + B15003_025E) / B15003_001E`
 
 ## Baseline variables
 
@@ -68,6 +81,9 @@ Note: exact raw field names can vary by release. Uncertain fields should be labe
 ### Robustness-only controls
 - `renter_share` or `vacancy_rate`
 - `ba_share`
+- `poverty_rate` (optional robustness; do not pair with median income in baseline rent model)
+
+In this repository, the vacancy proxy is stored as `vacancy_rate` and duplicated as `vacancy_proxy` for naming clarity.
 
 Do not include poverty rate alongside median income in the baseline rent model unless explicitly requested.
 
@@ -164,18 +180,36 @@ Use lightweight, common libraries:
 2. Install dependencies:
    - `pip install pandas numpy requests statsmodels matplotlib`
    - or `pip install -r requirements.txt` (if present)
-3. Place raw source files in `data/raw/`.
-4. Run scripts in order:
+3. Set your ACS key (recommended):
+   - Option A (PowerShell): `$env:ACS_API_KEY="<YOUR_KEY>"`
+   - Option B (`.env`): copy `.env.example` to `.env` and set `ACS_API_KEY` there (auto-loaded by the build script)
+4. Pull ACS county data first:
+
+```bash
+python src/data/02_build_county_dataset.py --year <ACS_YEAR> --acs-only
+```
+
+- Example used in this repo session: `python src/data/02_build_county_dataset.py --year 2024 --acs-only`
+- The script auto-saves to `data/raw/acs_county_<ACS_YEAR>.csv` if `--output` is not provided.
+- If `--year` is omitted, the script default is `2024`.
+
+5. Place non-ACS source files in `data/raw/`.
+6. After adding non-ACS sources and the model script, run scripts in order for full merged dataset + models:
 
 ```bash
 python src/data/01_download_data.py --qcew-url "<QCEW_URL>" --ipeds-url "<IPEDS_URL>" --metro-url "<METRO_URL>"
-python src/data/02_build_county_dataset.py --year 2022 --qcew data/raw/qcew_county.csv --ipeds data/raw/ipeds_institutions.csv --metro data/raw/metro_crosswalk.csv --output data/processed/county_analysis_2022.csv
-python src/models/03_run_models.py --input data/processed/county_analysis_2022.csv --outdir outputs
+python src/data/02_build_county_dataset.py --year <YEAR> --qcew data/raw/qcew_county.csv --ipeds data/raw/ipeds_institutions.csv --metro data/raw/metro_crosswalk.csv
+python src/models/03_run_models.py --input data/processed/county_analysis_<YEAR>.csv --outdir outputs
 ```
+
+## Current status
+
+- Implemented now: ACS county extraction (`--acs-only`) and raw download helper.
+- Planned for later commits: final non-ACS merge validation and `src/models/03_run_models.py` in this repository.
 
 ## Expected outputs
 
-- `data/processed/county_analysis_2022.csv`
+- `data/processed/county_analysis_<YEAR>.csv` (default example: `data/processed/county_analysis_2024.csv`)
 - `outputs/tables/baseline_rent.csv`
 - `outputs/tables/baseline_wage.csv`
 - `outputs/tables/robustness.csv`

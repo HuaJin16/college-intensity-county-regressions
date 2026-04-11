@@ -16,7 +16,7 @@ venv/
 env/
 ENV/
 
-# Environment variable files
+# Environment variable files (local keys/secrets)
 .env
 .env.*
 !.env.example

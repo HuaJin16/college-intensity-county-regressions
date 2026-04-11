@@ -14,19 +14,47 @@ Only `.gitkeep` placeholders are tracked in these folders by default.
 
 Place these files in `data/raw/` unless you pass custom paths at runtime:
 
+- `acs_county_2024.csv`: ACS county extract built from Census API (default-year filename)
 - `qcew_county.csv`: BLS QCEW county file for wages/employment
 - `ipeds_institutions.csv`: IPEDS institution-level enrollment/location file
 - `metro_crosswalk.csv`: county metro/nonmetro crosswalk file
 
 ## ACS input
 
-ACS 5-year county variables are pulled from the Census API in the build script. If needed, set `ACS_API_KEY` as an environment variable.
+ACS 5-year county variables are pulled from the Census API in `src/data/02_build_county_dataset.py`.
+
+Vacancy proxy naming: the output includes both `vacancy_rate` and `vacancy_proxy` (alias).
+
+If needed, set `ACS_API_KEY` as an environment variable:
+
+```bash
+# PowerShell
+$env:ACS_API_KEY="<YOUR_KEY>"
+```
+
+Or use `.env` in the repository root:
+
+```bash
+# PowerShell
+Copy-Item .env.example .env
+# then set ACS_API_KEY in .env
+```
+
+`src/data/02_build_county_dataset.py` auto-loads `.env` when present.
+
+To build ACS-only county data first:
+
+```bash
+python src/data/02_build_county_dataset.py --year 2024 --acs-only --output data/raw/acs_county_2024.csv
+```
+
+If `--year` is omitted, the script default is `2024`.
 
 ## Recommended source alignment
 
-- ACS 5-year: 2018-2022
-- QCEW county annual: 2022
-- IPEDS institution-level: 2022 (or nearest available, clearly flagged)
+- ACS 5-year: 2020-2024
+- QCEW county annual: 2024 (or nearest available, clearly flagged)
+- IPEDS institution-level: 2024 (or nearest available, clearly flagged)
 
 ## Run order
 
@@ -39,8 +67,10 @@ python src/data/01_download_data.py --qcew-url "<QCEW_URL>" --ipeds-url "<IPEDS_
 2. Build merged county dataset:
 
 ```bash
-python src/data/02_build_county_dataset.py --year 2022 --qcew data/raw/qcew_county.csv --ipeds data/raw/ipeds_institutions.csv --metro data/raw/metro_crosswalk.csv --output data/processed/county_analysis_2022.csv
+python src/data/02_build_county_dataset.py --year 2024 --qcew data/raw/qcew_county.csv --ipeds data/raw/ipeds_institutions.csv --metro data/raw/metro_crosswalk.csv --acs-out data/raw/acs_county_2024.csv --output data/processed/county_analysis_2024.csv
 ```
+
+Note: full regression scripts are tracked as a later implementation step; this data guide covers the extraction/build phase.
 
 ## Notes on field names
 

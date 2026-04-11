@@ -36,9 +36,9 @@ Main explanatory variable:
 
 Unless explicitly changed by the user, use:
 
-- ACS 5-year: 2018-2022
-- QCEW annual county data: 2022
-- IPEDS institution-level enrollment/location: 2022 (or nearest available, flagged)
+- ACS 5-year: 2020-2024
+- QCEW annual county data: 2024 (or nearest available, flagged)
+- IPEDS institution-level enrollment/location: 2024 (or nearest available, flagged)
 
 If source years differ, state the assumption clearly and mark for human review.
 
@@ -139,7 +139,7 @@ Preferred script order:
 
 ## Expected Outputs
 
-- `data/processed/county_analysis_2022.csv`
+- `data/processed/county_analysis_2024.csv`
 - `outputs/tables/baseline_rent.csv`
 - `outputs/tables/baseline_wage.csv`
 - `outputs/tables/robustness.csv`

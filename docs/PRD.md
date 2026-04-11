@@ -49,10 +49,10 @@
 - `ln(AvgWeeklyWage_i) ~ CollegeIntensity_i + ln(Population_i) + Metro_i + IndustryMix_i + StateFE`
 
 ### Sample construction
-- Recommended reference year: 2022 for all sources where possible.
-  - ACS 5-year: 2018-2022
-  - QCEW: 2022 annual county data
-  - IPEDS: 2022 enrollment/location file (or nearest available)
+- Recommended reference year: 2024 for all sources where possible.
+  - ACS 5-year: 2020-2024
+  - QCEW: 2024 annual county data (or nearest available)
+  - IPEDS: 2024 enrollment/location file (or nearest available)
 - Start from ACS county universe, then merge in QCEW, aggregated IPEDS, and metro crosswalk by county FIPS.
 - Build model-specific complete-case samples.
 
@@ -70,6 +70,8 @@
 
 ## 2) Implementation plan (Python)
 
+Current implementation checkpoint: ACS extraction (`--acs-only`) and raw download helper are implemented; full regression runner integration can land in later commits.
+
 ### Script layout
 
 1. `src/data/01_download_data.py`
@@ -81,6 +83,7 @@
 - Purpose: Build one merged county dataset.
 - Tasks:
   - Pull ACS county data from Census API.
+  - Support an ACS-only extraction mode for first-pass data pull.
   - Load QCEW/IPEDS/metro raw files.
   - Standardize county FIPS.
   - Aggregate IPEDS to county enrollment.
@@ -92,7 +95,8 @@
   - `data/raw/ipeds_institutions.csv`
   - `data/raw/metro_crosswalk.csv`
   - optional ACS API key
-- Output: `data/processed/county_analysis_2022.csv`
+- Output: `data/processed/county_analysis_2024.csv`
+- ACS-only output (optional): `data/raw/acs_county_2024.csv`
 
 3. `src/models/03_run_models.py`
 - Purpose: Run baseline and robustness regressions in `statsmodels`.
@@ -102,7 +106,7 @@
   - Estimate robustness specs (clustered SE, added controls, winsorized intensity).
   - Export coefficient tables to CSV.
   - Save simple residual-vs-fitted plots.
-- Input: `data/processed/county_analysis_2022.csv`
+- Input: `data/processed/county_analysis_2024.csv`
 - Outputs:
   - `outputs/tables/baseline_rent.csv`
   - `outputs/tables/baseline_wage.csv`
@@ -110,7 +114,16 @@
   - `outputs/figures/*.png`
 
 ### Run order
-1. Optional download step:
+1. Pull ACS county variables first (uses Census API key if provided):
+
+```bash
+python src/data/02_build_county_dataset.py \
+  --year 2024 \
+  --acs-only \
+  --output data/raw/acs_county_2024.csv
+```
+
+2. Optional download step for non-ACS files:
 
 ```bash
 python src/data/01_download_data.py \
@@ -119,22 +132,23 @@ python src/data/01_download_data.py \
   --metro-url "<METRO_URL>"
 ```
 
-2. Build merged county dataset:
+3. Build merged county dataset:
 
 ```bash
 python src/data/02_build_county_dataset.py \
-  --year 2022 \
+  --year 2024 \
   --qcew data/raw/qcew_county.csv \
   --ipeds data/raw/ipeds_institutions.csv \
   --metro data/raw/metro_crosswalk.csv \
-  --output data/processed/county_analysis_2022.csv
+  --acs-out data/raw/acs_county_2024.csv \
+  --output data/processed/county_analysis_2024.csv
 ```
 
-3. Run regressions and export tables:
+4. Run regressions and export tables:
 
 ```bash
 python src/models/03_run_models.py \
-  --input data/processed/county_analysis_2022.csv \
+  --input data/processed/county_analysis_2024.csv \
   --outdir outputs
 ```
 
@@ -182,6 +196,7 @@ Note: Some raw field names vary by release. Any uncertain names are marked "veri
 | `ln_median_gross_rent` | derived | Derived | Log rent outcome | `ln(median_gross_rent)` if >0 | Baseline outcome |
 | `median_household_income` | `B19013_001E` | ACS 5-year | Median household income | Numeric cast | Baseline rent control |
 | `ln_median_household_income` | derived | Derived | Log income | `ln(median_household_income)` if >0 | Baseline rent control |
+| `poverty_rate` | `B17001_002E/B17001_001E` | ACS 5-year | Share below poverty line | computed ratio | Optional robustness/descriptive |
 | `avg_weekly_wage` | `annual_avg_wkly_wage` (verify) or `avg_annual_pay/52` | QCEW county | Weekly wage | Parse suppressed; fallback from annual pay | Baseline wage outcome |
 | `ln_avg_weekly_wage` | derived | Derived | Log wage outcome | `ln(avg_weekly_wage)` if >0 | Baseline wage outcome |
 | `college_enrollment_total` | IPEDS total enrollment (`EFYTOTLT` or similar, verify) | IPEDS institution-level | County-summed enrollment | Aggregate institution records by county | Baseline key input |
@@ -195,6 +210,7 @@ Note: Some raw field names vary by release. Any uncertain names are marked "veri
 | `prof_emp_share` | QCEW industry employment (54-56) | QCEW county-industry | Professional/business share | sector emp / total emp | Robustness/optional |
 | `renter_share` | `B25003_003E/(B25003_002E+B25003_003E)` | ACS 5-year | Share renter-occupied | computed ratio | Robustness-only |
 | `vacancy_rate` | `B25002_003E/B25002_001E` | ACS 5-year | Housing vacancy rate | computed ratio | Robustness-only |
+| `vacancy_proxy` | alias of `vacancy_rate` | Derived | Vacancy proxy alias for naming consistency | direct copy | Robustness-only |
 | `ba_share` | `(B15003_022E+...+B15003_025E)/B15003_001E` | ACS 5-year | Bachelor-or-higher share | computed ratio | Robustness-only |
 
 ---
@@ -377,6 +393,8 @@ ACS_VARS = [
     "B01003_001E",  # population
     "B25064_001E",  # median gross rent
     "B19013_001E",  # median household income
+    "B17001_001E",  # poverty denominator
+    "B17001_002E",  # poverty numerator
     "B25003_002E",  # owner-occupied
     "B25003_003E",  # renter-occupied
     "B25002_001E",  # total housing units
@@ -443,9 +461,11 @@ def fetch_acs_county(year: int, api_key: str = "") -> pd.DataFrame:
     acs["population"] = acs["B01003_001E"]
     acs["median_gross_rent"] = acs["B25064_001E"]
     acs["median_household_income"] = acs["B19013_001E"]
+    acs["poverty_rate"] = acs["B17001_002E"] / acs["B17001_001E"]
 
     acs["renter_share"] = acs["B25003_003E"] / (acs["B25003_002E"] + acs["B25003_003E"])
     acs["vacancy_rate"] = acs["B25002_003E"] / acs["B25002_001E"]
+    acs["vacancy_proxy"] = acs["vacancy_rate"]
 
     ba_num = acs[["B15003_022E", "B15003_023E", "B15003_024E", "B15003_025E"]].sum(axis=1)
     acs["ba_share"] = ba_num / acs["B15003_001E"]
@@ -458,8 +478,10 @@ def fetch_acs_county(year: int, api_key: str = "") -> pd.DataFrame:
         "population",
         "median_gross_rent",
         "median_household_income",
+        "poverty_rate",
         "renter_share",
         "vacancy_rate",
+        "vacancy_proxy",
         "ba_share",
     ]
     return acs[keep].copy()
@@ -660,6 +682,7 @@ def build_dataset(
         "prof_emp_share",
         "renter_share",
         "vacancy_rate",
+        "vacancy_proxy",
         "ba_share",
     ]
     keep = [c for c in keep if c in df.columns]
@@ -673,11 +696,11 @@ def build_dataset(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build county cross-sectional analysis dataset.")
-    parser.add_argument("--year", type=int, default=2022)
+    parser.add_argument("--year", type=int, default=2024)
     parser.add_argument("--qcew", type=Path, required=True)
     parser.add_argument("--ipeds", type=Path, required=True)
     parser.add_argument("--metro", type=Path, required=True)
-    parser.add_argument("--output", type=Path, default=Path("data/processed/county_analysis_2022.csv"))
+    parser.add_argument("--output", type=Path, default=Path("data/processed/county_analysis_2024.csv"))
     parser.add_argument("--acs-api-key", type=str, default=os.getenv("ACS_API_KEY", ""))
     args = parser.parse_args()
 
@@ -763,7 +786,7 @@ def residual_plot(result, path: Path, title: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run baseline and robustness county regressions.")
-    parser.add_argument("--input", type=Path, default=Path("data/processed/county_analysis_2022.csv"))
+    parser.add_argument("--input", type=Path, default=Path("data/processed/county_analysis_2024.csv"))
     parser.add_argument("--outdir", type=Path, default=Path("outputs"))
     args = parser.parse_args()
 
@@ -906,7 +929,7 @@ matplotlib
 
 ## 8) Open decisions / assumptions needing human review
 
-1. Final reference year alignment (recommended: 2022).
+1. Final reference year alignment (recommended: 2024).
 2. Exact QCEW total-industry and ownership filters for your file release.
 3. Exact IPEDS enrollment field choice (fall total vs other enrollment measure).
 4. Metro definition source and coding rule (direct metro flag vs RUCC threshold).
@@ -919,7 +942,7 @@ matplotlib
 
 ## Minimal class deliverable checklist
 
-- One clean merged county dataset: `data/processed/county_analysis_2022.csv`
+- One clean merged county dataset: `data/processed/county_analysis_2024.csv`
 - One baseline rent regression table: `outputs/tables/baseline_rent.csv`
 - One baseline wage regression table: `outputs/tables/baseline_wage.csv`
 - One robustness table: `outputs/tables/robustness.csv`
