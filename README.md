@@ -194,6 +194,14 @@ python src/data/02_build_county_dataset.py --year <ACS_YEAR> --acs-only
 - If `--year` is omitted, the script default is `2024`.
 
 5. Place non-ACS source files in `data/raw/`.
+
+- Exact QCEW 2024 download command used in this repository session:
+
+```bash
+python src/data/01_download_data.py --qcew-url "https://data.bls.gov/cew/data/files/2024/csv/2024_annual_singlefile.zip" --qcew-out data/raw/qcew_2024_annual_singlefile.zip --overwrite
+```
+
+- This download is then prepared into the default build input file: `data/raw/qcew_county.csv`.
 6. After adding non-ACS sources and the model script, run scripts in order for full merged dataset + models:
 
 ```bash
