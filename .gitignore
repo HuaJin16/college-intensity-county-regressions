@@ -1,0 +1,58 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build and packaging artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variable files
+.env
+.env.*
+!.env.example
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Test and static analysis caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Logs
+*.log
+
+# Editors and OS artifacts
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Project data (keep placeholders only)
+data/raw/*
+!data/raw/.gitkeep
+data/intermediate/*
+!data/intermediate/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Project outputs (keep placeholders only)
+outputs/tables/*
+!outputs/tables/.gitkeep
+outputs/figures/*
+!outputs/figures/.gitkeep
+outputs/memos/*
+!outputs/memos/.gitkeep
