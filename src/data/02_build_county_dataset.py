@@ -19,7 +19,13 @@ QCEW_WAGE_COLS = ["annual_avg_wkly_wage", "avg_weekly_wage", "Avg Weekly Wage"]
 QCEW_ANNUAL_PAY_COLS = ["avg_annual_pay", "annual_avg_pay", "Average Annual Pay"]
 QCEW_EMP_COLS = ["annual_avg_emplvl", "avg_emplvl", "Annual Average Employment"]
 
-IPEDS_ENROLL_COLS = ["enrollment_total", "EFYTOTLT", "F1EFTOTLT", "TOTAL_ENROLLMENT"]
+IPEDS_ENROLL_COLS = [
+    "enrollment_total",
+    "college_enrollment_total",
+    "EFYTOTLT",
+    "F1EFTOTLT",
+    "TOTAL_ENROLLMENT",
+]
 IPEDS_UNITID_COLS = ["UNITID", "unitid"]
 IPEDS_COUNTY_FIPS_COLS = ["county_fips", "COUNTYFIPS", "COUNTY_FIPS", "COUNTYCD"]
 IPEDS_STATE_FIPS_COLS = ["state_fips", "STFIPS", "STATEFIPS"]
@@ -267,9 +273,11 @@ def load_ipeds_aggregated(ipeds_path: Path) -> pd.DataFrame:
     unit_col = pick_col(ipeds, IPEDS_UNITID_COLS, required=False)
 
     county_fips_col = pick_col(ipeds, IPEDS_COUNTY_FIPS_COLS, required=False)
-    ipeds["county_fips"] = np.nan
     if county_fips_col is not None:
-        ipeds["county_fips"] = standardize_county_fips(ipeds[county_fips_col])
+        county_fips_source = ipeds[county_fips_col].copy()
+        ipeds["county_fips"] = standardize_county_fips(county_fips_source)
+    else:
+        ipeds["county_fips"] = np.nan
 
     if ipeds["county_fips"].notna().mean() < 0.50:
         state_col = pick_col(ipeds, IPEDS_STATE_FIPS_COLS, required=False)
@@ -306,10 +314,14 @@ def load_metro_crosswalk(metro_path: Path) -> pd.DataFrame:
             metro["metro"] = metro_num
         else:
             metro_text = metro[metro_col].astype(str).str.lower()
-            metro["metro"] = np.where(
-                metro_text.str.contains("non"),
-                0,
-                np.where(metro_text.str.contains("metro"), 1, np.nan),
+            metro["metro"] = np.select(
+                [
+                    metro_text.str.contains("micro") | metro_text.str.contains("micropolitan"),
+                    metro_text.str.contains("non"),
+                    metro_text.str.contains(r"\bmsa\b|metropolitan|metro"),
+                ],
+                [0, 0, 1],
+                default=np.nan,
             )
     elif rucc_col is not None:
         rucc = pd.to_numeric(metro[rucc_col], errors="coerce")

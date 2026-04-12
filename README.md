@@ -202,10 +202,21 @@ python src/data/01_download_data.py --qcew-url "https://data.bls.gov/cew/data/fi
 ```
 
 - This download is then prepared into the default build input file: `data/raw/qcew_county.csv`.
+- Build the canonical metro crosswalk from the QCEW County-MSA-CSA crosswalk using the baseline mapping:
+  - `MSA` -> `metro = 1`
+  - `MicroSA` or blank/unassigned CBSA -> `metro = 0`
+
+```bash
+python src/data/02_build_metro_crosswalk.py --input data/raw/qcew_county_msa_csa_crosswalk.txt --output data/raw/metro_crosswalk.csv --county-universe data/raw/acs_county_2024.csv
+```
+
+- `--county-universe data/raw/acs_county_2024.csv` ensures one row for every county in the ACS master county list; counties not present in the QCEW crosswalk are treated as non-CBSA (`metro = 0`).
+
 6. After adding non-ACS sources and the model script, run scripts in order for full merged dataset + models:
 
 ```bash
 python src/data/01_download_data.py --qcew-url "<QCEW_URL>" --ipeds-url "<IPEDS_URL>" --metro-url "<METRO_URL>"
+python src/data/02_build_metro_crosswalk.py --input data/raw/qcew_county_msa_csa_crosswalk.txt --output data/raw/metro_crosswalk.csv --county-universe data/raw/acs_county_<YEAR>.csv
 python src/data/02_build_county_dataset.py --year <YEAR> --qcew data/raw/qcew_county.csv --ipeds data/raw/ipeds_institutions.csv --metro data/raw/metro_crosswalk.csv
 python src/models/03_run_models.py --input data/processed/county_analysis_<YEAR>.csv --outdir outputs
 ```

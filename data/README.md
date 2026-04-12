@@ -17,7 +17,25 @@ Place these files in `data/raw/` unless you pass custom paths at runtime:
 - `acs_county_2024.csv`: ACS county extract built from Census API (default-year filename)
 - `qcew_county.csv`: BLS QCEW county file for wages/employment
 - `ipeds_institutions.csv`: IPEDS institution-level enrollment/location file
-- `metro_crosswalk.csv`: county metro/nonmetro crosswalk file
+- `qcew_county_msa_csa_crosswalk.txt` (or `.csv`): raw QCEW county-MSA-CSA crosswalk source
+- `metro_crosswalk.csv`: canonical county metro/nonmetro file used in model merges
+
+## Metro mapping from QCEW county-MSA-CSA crosswalk
+
+Use `src/data/02_build_metro_crosswalk.py` to convert the raw crosswalk into `data/raw/metro_crosswalk.csv`.
+
+Exact mapping used for baseline control:
+
+- CBSA title contains `MSA` (metropolitan) -> `metro = 1`
+- CBSA title contains `MicroSA` or is blank/unassigned -> `metro = 0`
+
+Command:
+
+```bash
+python src/data/02_build_metro_crosswalk.py --input data/raw/qcew_county_msa_csa_crosswalk.txt --output data/raw/metro_crosswalk.csv --county-universe data/raw/acs_county_2024.csv
+```
+
+Using `--county-universe` is recommended when you want `metro_crosswalk.csv` to contain every county in your ACS master list. Any county not listed in the QCEW crosswalk is assigned `cbsa_type = none` and `metro = 0`.
 
 ## ACS input
 
