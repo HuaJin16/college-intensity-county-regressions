@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -29,6 +30,113 @@ def require_columns(df: pd.DataFrame, columns: list[str], context: str) -> None:
     missing = [column for column in columns if column not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns for {context}: {missing}")
+
+
+def infer_single_year(df: pd.DataFrame) -> int | None:
+    if "year" not in df.columns:
+        return None
+
+    years = pd.to_numeric(df["year"], errors="coerce").dropna().astype(int).unique().tolist()
+    if len(years) != 1:
+        return None
+    return int(years[0])
+
+
+def _parse_int_token(token: str) -> int | None:
+    cleaned = token.replace(",", "").strip()
+    if not cleaned:
+        return None
+    if not cleaned.isdigit():
+        return None
+    return int(cleaned)
+
+
+def parse_merge_qc_report(path: Path) -> dict:
+    if not path.exists():
+        return {}
+
+    text = path.read_text(encoding="utf-8")
+
+    info: dict[str, object] = {}
+
+    scope_match = re.search(r"- scope:\s*`([^`]+)`", text)
+    if scope_match:
+        info["scope"] = scope_match.group(1).strip()
+
+    qcew_match = re.search(r"- QCEW out-of-scope counties:\s*([0-9,]+)", text)
+    if qcew_match:
+        qcew_val = _parse_int_token(qcew_match.group(1))
+        if qcew_val is not None:
+            info["qcew_out_of_scope"] = qcew_val
+
+    ipeds_match = re.search(r"- IPEDS out-of-scope counties:\s*([0-9,]+)", text)
+    if ipeds_match:
+        ipeds_val = _parse_int_token(ipeds_match.group(1))
+        if ipeds_val is not None:
+            info["ipeds_out_of_scope"] = ipeds_val
+
+    return info
+
+
+def parse_ipeds_metadata(path: Path) -> dict:
+    if not path.exists():
+        return {}
+
+    text = path.read_text(encoding="utf-8")
+    info: dict[str, object] = {}
+
+    step_match = re.search(r"priority rule step used:\s*`([^`]+)`", text)
+    if step_match:
+        info["enrollment_step"] = step_match.group(1).strip()
+
+    excluded_match = re.search(r"institutions excluded from county aggregation:\s*([0-9,]+)", text)
+    if excluded_match:
+        excluded_val = _parse_int_token(excluded_match.group(1))
+        if excluded_val is not None:
+            info["excluded_total"] = excluded_val
+
+    missing_enrollment_match = re.search(r"missing_enrollment:\s*([0-9,]+)", text)
+    if missing_enrollment_match:
+        missing_enrollment_val = _parse_int_token(missing_enrollment_match.group(1))
+        if missing_enrollment_val is not None:
+            info["excluded_missing_enrollment"] = missing_enrollment_val
+
+    missing_geo_match = re.search(r"missing_or_unmappable_county_fips:\s*([0-9,]+)", text)
+    if missing_geo_match:
+        missing_geo_val = _parse_int_token(missing_geo_match.group(1))
+        if missing_geo_val is not None:
+            info["excluded_missing_geo"] = missing_geo_val
+
+    return info
+
+
+def parse_qcew_industry_profile(path: Path) -> dict:
+    if not path.exists():
+        return {}
+
+    try:
+        qcew = pd.read_csv(path, usecols=["industry_code"], dtype=str, low_memory=False)
+    except ValueError:
+        qcew = pd.read_csv(path, dtype=str, low_memory=False)
+        if "industry_code" not in qcew.columns:
+            return {}
+
+    codes = (
+        qcew["industry_code"]
+        .astype(str)
+        .str.strip()
+        .str.replace(r"\.0$", "", regex=True)
+    )
+    unique_codes = sorted({code for code in codes if code and code.lower() != "nan"})
+
+    total_industry_codes = {"10", "000000", "0"}
+    only_total = bool(unique_codes) and set(unique_codes).issubset(total_industry_codes)
+
+    return {
+        "unique_codes": unique_codes,
+        "unique_code_count": len(unique_codes),
+        "only_total_industry": only_total,
+    }
 
 
 def fit_ols(
@@ -133,6 +241,9 @@ def write_limitations_memo(
     industry_coverage: dict[str, float],
     min_industry_coverage: float,
     skipped_specs: list[str],
+    merge_qc_info: dict,
+    ipeds_metadata_info: dict,
+    qcew_industry_info: dict,
 ) -> None:
     merged_n = len(df)
 
@@ -162,10 +273,31 @@ def write_limitations_memo(
         "# Limitations",
         "",
         "- This is a cross-sectional associational analysis; coefficients represent conditional correlations, not causal effects.",
-        f"- Baseline model samples are complete-case subsets of the merged county data (merged N = {merged_n:,}; rent N = {rent_n:,}; wage N = {wage_n:,}).",
-        f"- Missingness in merged data before model filtering: median_gross_rent = {missing_rent:,}, median_household_income = {missing_income:,}, avg_weekly_wage = {missing_wage:,}.",
-        f"- Counties with no college enrollment are retained with college_enrollment_total = 0 (count = {zero_college:,}).",
     ]
+
+    scope = str(merge_qc_info.get("scope", "")).strip()
+    qcew_out_of_scope = merge_qc_info.get("qcew_out_of_scope")
+    ipeds_out_of_scope = merge_qc_info.get("ipeds_out_of_scope")
+    if scope and isinstance(qcew_out_of_scope, int) and isinstance(ipeds_out_of_scope, int):
+        lines.append(
+            "- Geography scope is fixed to the ACS county universe for 50 states + DC + Puerto Rico "
+            f"(`{scope}`), so non-ACS-source county FIPS are excluded before merge "
+            f"(QCEW dropped {qcew_out_of_scope:,} out-of-scope county FIPS; "
+            f"IPEDS dropped {ipeds_out_of_scope:,})."
+        )
+    elif scope:
+        lines.append(
+            "- Geography scope is fixed to the ACS county universe for 50 states + DC + Puerto Rico "
+            f"(`{scope}`), which may exclude counties/territories present in non-ACS sources."
+        )
+
+    lines.extend(
+        [
+            f"- Baseline model samples are complete-case subsets of the merged county data (merged N = {merged_n:,}; rent N = {rent_n:,}; wage N = {wage_n:,}).",
+            f"- Missingness in merged data before model filtering: `median_gross_rent` = {missing_rent:,} counties, `median_household_income` = {missing_income:,} county, and `avg_weekly_wage` = {missing_wage:,} county.",
+            f"- Counties with no colleges are retained with `college_enrollment_total = 0` (count = {zero_college:,}), so identification includes many zero-intensity counties.",
+        ]
+    )
 
     if industry_controls:
         lines.append(
@@ -176,13 +308,56 @@ def write_limitations_memo(
         for control in INDUSTRY_CONTROL_CANDIDATES:
             control_cov = industry_coverage.get(control, 0.0)
             parts.append(f"{control}={control_cov:.1%}")
+        if bool(qcew_industry_info.get("only_total_industry", False)):
+            lines.append(
+                "- Baseline wage model omits industry-mix controls because the current QCEW county file "
+                "only contains total industry (`industry_code = 10`), yielding 0.0% non-missing "
+                f"coverage for `manuf_emp_share` and `leisure_emp_share` ({', '.join(parts)})."
+            )
+        else:
+            lines.append(
+                "- Baseline wage model omits industry controls because non-missing coverage is below "
+                f"threshold ({min_industry_coverage:.0%}; {', '.join(parts)})."
+            )
+
+    enrollment_step = str(ipeds_metadata_info.get("enrollment_step", "")).strip()
+    excluded_total = ipeds_metadata_info.get("excluded_total")
+    excluded_missing_enrollment = ipeds_metadata_info.get("excluded_missing_enrollment")
+    excluded_missing_geo = ipeds_metadata_info.get("excluded_missing_geo")
+    if (
+        enrollment_step == "fte_fallback"
+        and isinstance(excluded_total, int)
+        and isinstance(excluded_missing_enrollment, int)
+        and isinstance(excluded_missing_geo, int)
+    ):
         lines.append(
-            f"- Baseline wage model omits industry controls because non-missing coverage is below threshold ({min_industry_coverage:.0%}; {', '.join(parts)})."
+            "- IPEDS enrollment for this build uses an FTE fallback (not direct 12-month headcount), "
+            f"and {excluded_total:,} institutions are excluded from county aggregation "
+            f"({excluded_missing_enrollment:,} missing enrollment, {excluded_missing_geo:,} "
+            "missing/unmappable county FIPS)."
+        )
+    else:
+        lines.append(
+            "- IPEDS enrollment definitions and institution county assignments are source-release "
+            "dependent and should be interpreted with the documented data-construction assumptions."
         )
 
-    lines.append(
-        "- IPEDS enrollment definitions and institution county assignments are source-release dependent and should be interpreted with the documented data-construction assumptions."
-    )
+    if "college_intensity_pct" in df.columns:
+        intensity = pd.to_numeric(df["college_intensity_pct"], errors="coerce")
+        over_100 = int((intensity > 100).sum())
+        if over_100 > 0:
+            max_val = float(intensity.max())
+            top_idx = intensity.idxmax()
+            location_hint = ""
+            if "county_fips" in df.columns and "county_name" in df.columns:
+                top_fips = str(df.loc[top_idx, "county_fips"])
+                top_name = str(df.loc[top_idx, "county_name"])
+                location_hint = f" ({top_fips}: {top_name})"
+            lines.append(
+                "- College intensity has an extreme outlier "
+                f"({over_100:,} county above 100%; max = {max_val:.2f}%{location_hint}), so "
+                "winsorized-intensity robustness estimates should be reviewed alongside baseline estimates."
+            )
 
     if skipped_specs:
         lines.append(
@@ -197,6 +372,24 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run baseline and robustness county regressions.")
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--outdir", type=Path, default=DEFAULT_OUTDIR)
+    parser.add_argument(
+        "--merge-qc",
+        type=Path,
+        default=None,
+        help="Path to merge QC markdown report (default: data/intermediate/merge_qc_<year>.md).",
+    )
+    parser.add_argument(
+        "--ipeds-metadata",
+        type=Path,
+        default=None,
+        help="Path to IPEDS metadata markdown (default: data/intermediate/ipeds_<year>_metadata.md).",
+    )
+    parser.add_argument(
+        "--qcew-raw",
+        type=Path,
+        default=Path("data/raw/qcew_county.csv"),
+        help="Path to raw QCEW county file used for industry-code diagnostics.",
+    )
     parser.add_argument("--min-industry-coverage", type=float, default=0.80)
     parser.add_argument("--winsor-lower", type=float, default=0.01)
     parser.add_argument("--winsor-upper", type=float, default=0.99)
@@ -206,6 +399,27 @@ def main() -> None:
         raise ValueError("Winsor quantiles must satisfy 0 <= lower < upper <= 1.")
 
     df = pd.read_csv(args.input, dtype={"county_fips": str, "state_fips": str}, low_memory=False)
+
+    inferred_year = infer_single_year(df)
+    default_merge_qc = (
+        Path(f"data/intermediate/merge_qc_{inferred_year}.md")
+        if inferred_year is not None
+        else Path("data/intermediate/merge_qc_2024.md")
+    )
+    default_ipeds_metadata = (
+        Path(f"data/intermediate/ipeds_{inferred_year}_metadata.md")
+        if inferred_year is not None
+        else Path("data/intermediate/ipeds_2024_metadata.md")
+    )
+    merge_qc_path = args.merge_qc if args.merge_qc is not None else default_merge_qc
+    ipeds_metadata_path = (
+        args.ipeds_metadata if args.ipeds_metadata is not None else default_ipeds_metadata
+    )
+    qcew_raw_path = args.qcew_raw
+
+    merge_qc_info = parse_merge_qc_report(merge_qc_path)
+    ipeds_metadata_info = parse_ipeds_metadata(ipeds_metadata_path)
+    qcew_industry_info = parse_qcew_industry_profile(qcew_raw_path)
 
     numeric_cols = [
         "ln_median_gross_rent",
@@ -560,6 +774,9 @@ def main() -> None:
         industry_coverage=industry_coverage,
         min_industry_coverage=args.min_industry_coverage,
         skipped_specs=skipped_specs,
+        merge_qc_info=merge_qc_info,
+        ipeds_metadata_info=ipeds_metadata_info,
+        qcew_industry_info=qcew_industry_info,
     )
 
     print(f"Baseline rent sample: {len(rent_sample):,} of {n_total:,} counties")
