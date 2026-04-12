@@ -92,7 +92,7 @@ python src/data/02_build_county_dataset.py --year 2024 --qcew data/raw/qcew_coun
 
 By default, a merge QC report is written to `data/intermediate/merge_qc_2024.md` (or `merge_qc_<year>.md`). Override with `--qc-out` if needed.
 
-Note: full regression scripts are tracked as a later implementation step; this data guide covers the extraction/build phase.
+Regression execution is available via `src/models/03_run_models.py` and writes outputs to `outputs/tables/`, `outputs/figures/`, and `outputs/memos/`.
 
 ## Notes on field names
 

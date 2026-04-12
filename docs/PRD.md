@@ -72,7 +72,7 @@
 
 ## 2) Implementation plan (Python)
 
-Current implementation checkpoint: ACS extraction (`--acs-only`), raw download helper, metro crosswalk builder, and ACS-universe merge validation with geography-scope filtering are implemented; full regression runner integration can land in later commits.
+Current implementation checkpoint: ACS extraction (`--acs-only`), raw download helper, metro crosswalk builder, ACS-universe merge validation with geography-scope filtering, and the regression runner (`src/models/03_run_models.py`) are implemented.
 
 ### Script layout
 
@@ -114,6 +114,7 @@ Current implementation checkpoint: ACS extraction (`--acs-only`), raw download h
   - `outputs/tables/baseline_wage.csv`
   - `outputs/tables/robustness.csv`
   - `outputs/figures/*.png`
+  - `outputs/memos/limitations.md`
 
 ### Run order
 1. Pull ACS county variables first (uses Census API key if provided):

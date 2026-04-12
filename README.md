@@ -229,8 +229,7 @@ python src/models/03_run_models.py --input data/processed/county_analysis_<YEAR>
 
 ## Current status
 
-- Implemented now: ACS county extraction (`--acs-only`), raw download helper, metro crosswalk builder, and ACS-universe merge validation with geography scope filtering.
-- Planned for later commits: `src/models/03_run_models.py` in this repository.
+- Implemented now: ACS county extraction (`--acs-only`), raw download helper, metro crosswalk builder, ACS-universe merge validation with geography scope filtering, and `src/models/03_run_models.py` for baseline + robustness regressions.
 
 ## Expected outputs
 
