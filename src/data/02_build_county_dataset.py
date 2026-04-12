@@ -54,6 +54,64 @@ ACS_VARS = [
     "B15003_025E",  # doctorate
 ]
 
+US_50_STATE_FIPS = {
+    "01",
+    "02",
+    "04",
+    "05",
+    "06",
+    "08",
+    "09",
+    "10",
+    "12",
+    "13",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "29",
+    "30",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "39",
+    "40",
+    "41",
+    "42",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "51",
+    "53",
+    "54",
+    "55",
+    "56",
+}
+
+GEOGRAPHY_SCOPE_TO_STATES = {
+    "us_50_dc": US_50_STATE_FIPS | {"11"},
+    "us_50_dc_pr": US_50_STATE_FIPS | {"11", "72"},
+}
+
 
 def pick_col(
     df: pd.DataFrame,
@@ -126,6 +184,169 @@ def load_env_file(env_path: Path = Path(".env")) -> None:
 
         if key and key not in os.environ:
             os.environ[key] = value
+
+
+def format_fips_preview(fips_values: list[str], limit: int = 12) -> str:
+    if not fips_values:
+        return "none"
+    preview = ", ".join(fips_values[:limit])
+    if len(fips_values) > limit:
+        preview += ", ..."
+    return preview
+
+
+def filter_acs_geography(acs: pd.DataFrame, geography_scope: str) -> pd.DataFrame:
+    allowed_states = GEOGRAPHY_SCOPE_TO_STATES.get(geography_scope)
+    if allowed_states is None:
+        valid = ", ".join(sorted(GEOGRAPHY_SCOPE_TO_STATES.keys()))
+        raise ValueError(f"Unknown geography scope: {geography_scope}. Expected one of: {valid}")
+
+    filtered = acs[acs["state_fips"].isin(allowed_states)].copy()
+    if filtered.empty:
+        raise ValueError(
+            f"No ACS counties remained after applying geography scope '{geography_scope}'."
+        )
+
+    dropped = len(acs) - len(filtered)
+    if dropped > 0:
+        print(
+            f"Applied geography scope '{geography_scope}': kept {len(filtered):,} counties "
+            f"and dropped {dropped:,} outside scope."
+        )
+    else:
+        print(f"Applied geography scope '{geography_scope}': kept {len(filtered):,} counties.")
+
+    return filtered
+
+
+def filter_to_acs_universe(
+    source_df: pd.DataFrame,
+    source_name: str,
+    acs_fips_set: set[str],
+) -> tuple[pd.DataFrame, list[str]]:
+    unique_fips = sorted(source_df["county_fips"].dropna().astype(str).unique().tolist())
+    out_of_scope = [fips for fips in unique_fips if fips not in acs_fips_set]
+
+    if not out_of_scope:
+        print(f"{source_name}: all county FIPS are inside ACS geography scope.")
+        return source_df, out_of_scope
+
+    filtered = source_df[source_df["county_fips"].isin(acs_fips_set)].copy()
+    print(
+        f"{source_name}: dropped {len(out_of_scope):,} out-of-scope county FIPS "
+        f"not in ACS universe ({format_fips_preview(out_of_scope)})."
+    )
+    return filtered, out_of_scope
+
+
+def write_merge_qc_report(
+    qc_out_path: Path,
+    year: int,
+    geography_scope: str,
+    acs: pd.DataFrame,
+    qcew_before_scope: pd.DataFrame,
+    qcew_after_scope: pd.DataFrame,
+    qcew_out_of_scope: list[str],
+    ipeds_before_scope: pd.DataFrame,
+    ipeds_after_scope: pd.DataFrame,
+    ipeds_out_of_scope: list[str],
+    merged: pd.DataFrame,
+) -> None:
+    rent_required = [
+        "ln_median_gross_rent",
+        "college_intensity_pct",
+        "ln_median_household_income",
+        "ln_population",
+        "metro",
+        "state_fips",
+    ]
+    wage_required = [
+        "ln_avg_weekly_wage",
+        "college_intensity_pct",
+        "ln_population",
+        "metro",
+        "state_fips",
+    ]
+
+    rent_n = int(merged[rent_required].notna().all(axis=1).sum())
+    wage_n = int(merged[wage_required].notna().all(axis=1).sum())
+
+    missing_rent = merged[merged["median_gross_rent"].isna()][["county_fips", "county_name"]].copy()
+    missing_income = merged[merged["median_household_income"].isna()][["county_fips", "county_name"]].copy()
+    missing_wage = merged[merged["avg_weekly_wage"].isna()][["county_fips", "county_name"]].copy()
+
+    missing_rent = missing_rent.sort_values("county_fips")
+    missing_income = missing_income.sort_values("county_fips")
+    missing_wage = missing_wage.sort_values("county_fips")
+
+    qcew_non_county = [fips for fips in qcew_out_of_scope if fips.endswith("999")]
+    qcew_other_out = [fips for fips in qcew_out_of_scope if not fips.endswith("999")]
+
+    lines = [
+        f"# Merge QC Report ({year})",
+        "",
+        "## Geography scope",
+        f"- scope: `{geography_scope}`",
+        f"- ACS master counties kept: {len(acs):,}",
+        f"- ACS states/territories kept: {acs['state_fips'].nunique()}",
+        "",
+        "## Source coverage before ACS-universe filter",
+        f"- QCEW unique counties: {qcew_before_scope['county_fips'].nunique():,}",
+        f"- IPEDS unique counties: {ipeds_before_scope['county_fips'].nunique():,}",
+        "",
+        "## Out-of-scope county FIPS dropped before merge",
+        f"- QCEW out-of-scope counties: {len(qcew_out_of_scope):,}",
+        f"- QCEW non-county pseudo-FIPS (ends in 999): {len(qcew_non_county):,}",
+        f"- QCEW other out-of-scope counties: {len(qcew_other_out):,}",
+        f"- QCEW out-of-scope examples: {format_fips_preview(qcew_out_of_scope)}",
+        f"- IPEDS out-of-scope counties: {len(ipeds_out_of_scope):,}",
+        f"- IPEDS out-of-scope examples: {format_fips_preview(ipeds_out_of_scope)}",
+        "",
+        "## Source coverage after ACS-universe filter",
+        f"- QCEW unique counties retained: {qcew_after_scope['county_fips'].nunique():,}",
+        f"- IPEDS unique counties retained: {ipeds_after_scope['county_fips'].nunique():,}",
+        "",
+        "## Merged dataset completeness",
+        f"- merged county rows: {len(merged):,}",
+        f"- unique county_fips: {merged['county_fips'].nunique():,}",
+        f"- missing `median_gross_rent`: {int(merged['median_gross_rent'].isna().sum()):,}",
+        f"- missing `median_household_income`: {int(merged['median_household_income'].isna().sum()):,}",
+        f"- missing `avg_weekly_wage`: {int(merged['avg_weekly_wage'].isna().sum()):,}",
+        f"- zero `college_enrollment_total`: {int((merged['college_enrollment_total'] == 0).sum()):,}",
+        "",
+        "## Complete-case model sample sizes",
+        f"- rent baseline sample N: {rent_n:,}",
+        f"- wage baseline sample N: {wage_n:,}",
+        "",
+        "## Counties missing key outcomes/controls",
+        "### Missing median_gross_rent",
+    ]
+
+    if missing_rent.empty:
+        lines.append("- none")
+    else:
+        for row in missing_rent.itertuples(index=False):
+            lines.append(f"- {row.county_fips}: {row.county_name}")
+
+    lines.append("")
+    lines.append("### Missing median_household_income")
+    if missing_income.empty:
+        lines.append("- none")
+    else:
+        for row in missing_income.itertuples(index=False):
+            lines.append(f"- {row.county_fips}: {row.county_name}")
+
+    lines.append("")
+    lines.append("### Missing avg_weekly_wage")
+    if missing_wage.empty:
+        lines.append("- none")
+    else:
+        for row in missing_wage.itertuples(index=False):
+            lines.append(f"- {row.county_fips}: {row.county_name}")
+
+    qc_out_path.parent.mkdir(parents=True, exist_ok=True)
+    qc_out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"Saved merge QC report: {qc_out_path}")
 
 
 def fetch_acs_county(year: int, api_key: str = "") -> pd.DataFrame:
@@ -341,8 +562,11 @@ def build_dataset(
     acs_api_key: str = "",
     acs_out_path: Path | None = None,
     acs_only: bool = False,
+    geography_scope: str = "us_50_dc_pr",
+    qc_out_path: Path | None = None,
 ) -> pd.DataFrame:
     acs = fetch_acs_county(year=year, api_key=acs_api_key)
+    acs = filter_acs_geography(acs, geography_scope)
 
     if acs_out_path is not None:
         save_csv(acs, acs_out_path, "ACS county extract")
@@ -359,6 +583,14 @@ def build_dataset(
     qcew = load_qcew_county(qcew_path, year=year)
     ipeds = load_ipeds_aggregated(ipeds_path)
     metro = load_metro_crosswalk(metro_path)
+
+    acs_fips_set = set(acs["county_fips"].astype(str))
+
+    qcew_before_scope = qcew.copy()
+    qcew, qcew_out_of_scope = filter_to_acs_universe(qcew, "QCEW", acs_fips_set)
+
+    ipeds_before_scope = ipeds.copy()
+    ipeds, ipeds_out_of_scope = filter_to_acs_universe(ipeds, "IPEDS", acs_fips_set)
 
     df = acs.merge(qcew, on="county_fips", how="left")
     df = df.merge(ipeds, on="county_fips", how="left")
@@ -415,6 +647,22 @@ def build_dataset(
     df = df[keep].copy()
 
     save_csv(df, output_path, "analysis dataset")
+
+    if qc_out_path is not None:
+        write_merge_qc_report(
+            qc_out_path=qc_out_path,
+            year=year,
+            geography_scope=geography_scope,
+            acs=acs,
+            qcew_before_scope=qcew_before_scope,
+            qcew_after_scope=qcew,
+            qcew_out_of_scope=qcew_out_of_scope,
+            ipeds_before_scope=ipeds_before_scope,
+            ipeds_after_scope=ipeds,
+            ipeds_out_of_scope=ipeds_out_of_scope,
+            merged=df,
+        )
+
     return df
 
 
@@ -432,6 +680,22 @@ def main() -> None:
         type=Path,
         default=None,
         help="ACS extract path (default: data/raw/acs_county_<year>.csv)",
+    )
+    parser.add_argument(
+        "--geography-scope",
+        type=str,
+        choices=sorted(GEOGRAPHY_SCOPE_TO_STATES.keys()),
+        default="us_50_dc_pr",
+        help=(
+            "County geography scope applied to the ACS master frame. "
+            "Default keeps 50 states + DC + Puerto Rico."
+        ),
+    )
+    parser.add_argument(
+        "--qc-out",
+        type=Path,
+        default=None,
+        help="Merge QC markdown report path (default: data/intermediate/merge_qc_<year>.md)",
     )
     parser.add_argument("--acs-api-key", type=str, default=os.getenv("ACS_API_KEY", ""))
     parser.add_argument("--acs-only", action="store_true", help="Only pull and save ACS county variables.")
@@ -452,6 +716,12 @@ def main() -> None:
         else:
             output_path = Path(f"data/processed/county_analysis_{args.year}.csv")
 
+    qc_out_path = args.qc_out
+    if qc_out_path is None and not args.acs_only:
+        qc_out_path = Path(f"data/intermediate/merge_qc_{args.year}.md")
+    if args.acs_only:
+        qc_out_path = None
+
     if not args.acs_api_key:
         print("ACS API key not provided; using unauthenticated Census API request.")
 
@@ -464,6 +734,8 @@ def main() -> None:
         acs_api_key=args.acs_api_key,
         acs_out_path=acs_out_path,
         acs_only=args.acs_only,
+        geography_scope=args.geography_scope,
+        qc_out_path=qc_out_path,
     )
 
 

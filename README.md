@@ -11,6 +11,7 @@ This is an **associational cross-sectional analysis**. Results should be interpr
 
 - Unit of analysis: U.S. county (`county_fips`)
 - One row per county in final analytical dataset
+- Geography scope default: 50 states + DC + Puerto Rico (`us_50_dc_pr`)
 - Cross-sectional only
 - Baseline models are intentionally simple and economically grounded
 - Robustness checks are clearly separated from baseline specifications
@@ -117,6 +118,11 @@ Inference defaults:
 3. Left-merge county-aggregated IPEDS by `county_fips`
 4. Left-merge metro crosswalk by `county_fips`
 
+### Geography scope and out-of-scope handling
+- Default scope: ACS county universe restricted to 50 states + DC + Puerto Rico (`--geography-scope us_50_dc_pr`)
+- Non-ACS-source county FIPS not in the ACS universe are excluded before merge and reported in merge QC
+- Merge QC report default output: `data/intermediate/merge_qc_<YEAR>.md`
+
 ### Missing and suppressed handling
 - ACS missing/sentinel values -> `NaN`
 - QCEW suppression tokens (`N`, `*`, blanks, etc.) -> `NaN`
@@ -217,14 +223,14 @@ python src/data/02_build_metro_crosswalk.py --input data/raw/qcew_county_msa_csa
 ```bash
 python src/data/01_download_data.py --qcew-url "<QCEW_URL>" --ipeds-url "<IPEDS_URL>" --metro-url "<METRO_URL>"
 python src/data/02_build_metro_crosswalk.py --input data/raw/qcew_county_msa_csa_crosswalk.txt --output data/raw/metro_crosswalk.csv --county-universe data/raw/acs_county_<YEAR>.csv
-python src/data/02_build_county_dataset.py --year <YEAR> --qcew data/raw/qcew_county.csv --ipeds data/raw/ipeds_institutions.csv --metro data/raw/metro_crosswalk.csv
+python src/data/02_build_county_dataset.py --year <YEAR> --qcew data/raw/qcew_county.csv --ipeds data/raw/ipeds_institutions.csv --metro data/raw/metro_crosswalk.csv --geography-scope us_50_dc_pr
 python src/models/03_run_models.py --input data/processed/county_analysis_<YEAR>.csv --outdir outputs
 ```
 
 ## Current status
 
-- Implemented now: ACS county extraction (`--acs-only`) and raw download helper.
-- Planned for later commits: final non-ACS merge validation and `src/models/03_run_models.py` in this repository.
+- Implemented now: ACS county extraction (`--acs-only`), raw download helper, metro crosswalk builder, and ACS-universe merge validation with geography scope filtering.
+- Planned for later commits: `src/models/03_run_models.py` in this repository.
 
 ## Expected outputs
 
@@ -248,4 +254,4 @@ python src/models/03_run_models.py --input data/processed/county_analysis_<YEAR>
 - Final metro/nonmetro definition source
 - Final industry-mix control set in wage model
 - Unresolved IPEDS county assignments
-- Geography coverage choice (for example territories inclusion)
+- Any instructor-required override to default geography scope (`us_50_dc_pr`)

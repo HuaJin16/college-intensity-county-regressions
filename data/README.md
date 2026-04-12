@@ -68,6 +68,8 @@ python src/data/02_build_county_dataset.py --year 2024 --acs-only --output data/
 
 If `--year` is omitted, the script default is `2024`.
 
+Default geography scope in `02_build_county_dataset.py` is `us_50_dc_pr` (50 states + DC + Puerto Rico). Non-ACS-source county FIPS outside that ACS universe are excluded before merge and logged.
+
 ## Recommended source alignment
 
 - ACS 5-year: 2020-2024
@@ -85,8 +87,10 @@ python src/data/01_download_data.py --qcew-url "<QCEW_URL>" --ipeds-url "<IPEDS_
 2. Build merged county dataset:
 
 ```bash
-python src/data/02_build_county_dataset.py --year 2024 --qcew data/raw/qcew_county.csv --ipeds data/raw/ipeds_institutions.csv --metro data/raw/metro_crosswalk.csv --acs-out data/raw/acs_county_2024.csv --output data/processed/county_analysis_2024.csv
+python src/data/02_build_county_dataset.py --year 2024 --qcew data/raw/qcew_county.csv --ipeds data/raw/ipeds_institutions.csv --metro data/raw/metro_crosswalk.csv --acs-out data/raw/acs_county_2024.csv --output data/processed/county_analysis_2024.csv --geography-scope us_50_dc_pr
 ```
+
+By default, a merge QC report is written to `data/intermediate/merge_qc_2024.md` (or `merge_qc_<year>.md`). Override with `--qc-out` if needed.
 
 Note: full regression scripts are tracked as a later implementation step; this data guide covers the extraction/build phase.
 

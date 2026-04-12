@@ -53,7 +53,9 @@
   - ACS 5-year: 2020-2024
   - QCEW: 2024 annual county data (or nearest available)
   - IPEDS: 2024 enrollment/location file (or nearest available)
+- Geography scope default: 50 states + DC + Puerto Rico (`us_50_dc_pr`) based on ACS county universe.
 - Start from ACS county universe, then merge in QCEW, aggregated IPEDS, and metro crosswalk by county FIPS.
+- Exclude non-ACS-source county FIPS outside the ACS universe before merge and report dropped out-of-scope counties.
 - Build model-specific complete-case samples.
 
 ### Threats to validity and limitations
@@ -70,7 +72,7 @@
 
 ## 2) Implementation plan (Python)
 
-Current implementation checkpoint: ACS extraction (`--acs-only`) and raw download helper are implemented; full regression runner integration can land in later commits.
+Current implementation checkpoint: ACS extraction (`--acs-only`), raw download helper, metro crosswalk builder, and ACS-universe merge validation with geography-scope filtering are implemented; full regression runner integration can land in later commits.
 
 ### Script layout
 
@@ -140,6 +142,7 @@ python src/data/02_build_county_dataset.py \
   --qcew data/raw/qcew_county.csv \
   --ipeds data/raw/ipeds_institutions.csv \
   --metro data/raw/metro_crosswalk.csv \
+  --geography-scope us_50_dc_pr \
   --acs-out data/raw/acs_county_2024.csv \
   --output data/processed/county_analysis_2024.csv
 ```
@@ -934,7 +937,7 @@ matplotlib
 3. Exact IPEDS enrollment field choice (fall total vs other enrollment measure).
 4. Metro definition source and coding rule (direct metro flag vs RUCC threshold).
 5. Handling of unresolved IPEDS county assignment records.
-6. Whether to include territories or only 50 states + DC.
+6. Geography scope override to default (`us_50_dc_pr`) if instructor requires a different coverage rule.
 7. Minimum non-missing threshold for including industry-share controls in baseline wage model.
 8. Any source-specific column name differences to be mapped before first full run.
 
