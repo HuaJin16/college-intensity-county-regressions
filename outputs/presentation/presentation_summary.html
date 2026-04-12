@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>County College Intensity - Presentation Summary</title>
+  <style>
+    :root {
+      --bg: #f4f2ee;
+      --panel: #ffffff;
+      --ink: #1f2328;
+      --muted: #5f6773;
+      --accent: #0e7490;
+      --accent-soft: #dff3f8;
+      --border: #d6dde6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Source Sans Pro", "Trebuchet MS", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: radial-gradient(circle at 20% 10%, #eef7fb 0%, var(--bg) 50%, #ebe7df 100%);
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 28px 18px 40px;
+    }
+    .hero {
+      background: linear-gradient(135deg, #0e7490, #155e75);
+      color: #fff;
+      border-radius: 16px;
+      padding: 24px 26px;
+      box-shadow: 0 10px 24px rgba(13, 40, 60, 0.18);
+    }
+    h1, h2 {
+      font-family: "Merriweather", Georgia, serif;
+      margin: 0 0 12px;
+      letter-spacing: 0.2px;
+    }
+    h1 { font-size: 30px; }
+    h2 { font-size: 22px; margin-top: 0; }
+    .hero p { margin: 6px 0; opacity: 0.96; }
+    .grid {
+      display: grid;
+      gap: 18px;
+      margin-top: 18px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 4px 14px rgba(24, 36, 48, 0.07);
+    }
+    .takeaways {
+      background: var(--accent-soft);
+      border-left: 5px solid var(--accent);
+      padding: 12px 14px;
+      border-radius: 8px;
+    }
+    .takeaways ul { margin: 8px 0 0 18px; padding: 0; }
+    .takeaways li { margin: 7px 0; }
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .results-table th,
+    .results-table td {
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      padding: 9px 8px;
+      vertical-align: top;
+    }
+    .results-table th {
+      background: #f5f9fc;
+      color: #1b3240;
+      font-weight: 700;
+    }
+    .figure-box img {
+      width: 100%;
+      height: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+    }
+    .foot {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    @media (max-width: 820px) {
+      h1 { font-size: 24px; }
+      h2 { font-size: 20px; }
+      .wrap { padding: 14px; }
+      .hero { padding: 18px; }
+      .card { padding: 14px; }
+      .results-table { font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>County College Intensity - Presentation Summary</h1>
+      <p>Cross-sectional county regressions for rent and wage outcomes (50 states + DC + Puerto Rico).</p>
+      <p>Generated: 2026-04-12 12:00</p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Executive Takeaways</h2>
+        <div class="takeaways">
+          <ul>
+            <li><strong>Rent baseline:</strong> college intensity is positively associated with rent (beta=0.0015, p<0.001), about 0.15% higher rent per +1 pp college intensity.</li><li><strong>Wage baseline:</strong> association with wage is near zero and statistically weak (beta=0.0001, p=0.685, ~0.01% per +1 pp).</li><li><strong>Interpretation:</strong> estimates are associational (cross-sectional), not causal.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="card figure-box">
+        <h2>Coefficient Plot (College Intensity Term)</h2>
+        <img src="college_intensity_coef_plot.png" alt="Coefficient plot across model specifications" />
+      </article>
+
+      <article class="card">
+        <h2>Baseline Results (Slide Table)</h2>
+        <table class="dataframe results-table">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Specification</th>
+      <th>Outcome</th>
+      <th>Intensity measure</th>
+      <th>Coefficient (SE)</th>
+      <th>95% CI</th>
+      <th>p-value</th>
+      <th>Implied % change per +1pp</th>
+      <th>N</th>
+      <th>SE type</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Rent baseline (HC1)</td>
+      <td>Log median gross rent</td>
+      <td>raw</td>
+      <td>0.0015*** (0.0003)</td>
+      <td>[0.0009, 0.0021]</td>
+      <td><0.001</td>
+      <td>0.15%</td>
+      <td>3214</td>
+      <td>HC1</td>
+    </tr>
+    <tr>
+      <td>Wage baseline (HC1)</td>
+      <td>Log average weekly wage</td>
+      <td>raw</td>
+      <td>0.0001 (0.0003)</td>
+      <td>[-0.0005, 0.0008]</td>
+      <td>0.685</td>
+      <td>0.01%</td>
+      <td>3221</td>
+      <td>HC1</td>
+    </tr>
+  </tbody>
+</table>
+      </article>
+
+      <article class="card">
+        <h2>All Key Coefficients (Baseline + Robustness)</h2>
+        <table class="dataframe results-table">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Specification</th>
+      <th>Outcome</th>
+      <th>Intensity measure</th>
+      <th>Coefficient (SE)</th>
+      <th>95% CI</th>
+      <th>p-value</th>
+      <th>Implied % change per +1pp</th>
+      <th>N</th>
+      <th>SE type</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Rent baseline (HC1)</td>
+      <td>Log median gross rent</td>
+      <td>raw</td>
+      <td>0.0015*** (0.0003)</td>
+      <td>[0.0009, 0.0021]</td>
+      <td><0.001</td>
+      <td>0.15%</td>
+      <td>3214</td>
+      <td>HC1</td>
+    </tr>
+    <tr>
+      <td>Rent baseline (state-clustered SE)</td>
+      <td>Log median gross rent</td>
+      <td>raw</td>
+      <td>0.0015*** (0.0003)</td>
+      <td>[0.0009, 0.0021]</td>
+      <td><0.001</td>
+      <td>0.15%</td>
+      <td>3214</td>
+      <td>cluster_state</td>
+    </tr>
+    <tr>
+      <td>Rent + renter share</td>
+      <td>Log median gross rent</td>
+      <td>raw</td>
+      <td>-0.0001 (0.0003)</td>
+      <td>[-0.0007, 0.0004]</td>
+      <td>0.644</td>
+      <td>-0.01%</td>
+      <td>3214</td>
+      <td>HC1</td>
+    </tr>
+    <tr>
+      <td>Rent + BA share</td>
+      <td>Log median gross rent</td>
+      <td>raw</td>
+      <td>-0.0005* (0.0003)</td>
+      <td>[-0.0011, 0.0000]</td>
+      <td>0.066</td>
+      <td>-0.05%</td>
+      <td>3214</td>
+      <td>HC1</td>
+    </tr>
+    <tr>
+      <td>Rent winsorized intensity</td>
+      <td>Log median gross rent</td>
+      <td>winsorized (1st/99th pct)</td>
+      <td>0.0020*** (0.0004)</td>
+      <td>[0.0013, 0.0027]</td>
+      <td><0.001</td>
+      <td>0.20%</td>
+      <td>3214</td>
+      <td>HC1</td>
+    </tr>
+    <tr>
+      <td>Wage baseline (HC1)</td>
+      <td>Log average weekly wage</td>
+      <td>raw</td>
+      <td>0.0001 (0.0003)</td>
+      <td>[-0.0005, 0.0008]</td>
+      <td>0.685</td>
+      <td>0.01%</td>
+      <td>3221</td>
+      <td>HC1</td>
+    </tr>
+    <tr>
+      <td>Wage baseline (state-clustered SE)</td>
+      <td>Log average weekly wage</td>
+      <td>raw</td>
+      <td>0.0001 (0.0003)</td>
+      <td>[-0.0005, 0.0007]</td>
+      <td>0.642</td>
+      <td>0.01%</td>
+      <td>3221</td>
+      <td>cluster_state</td>
+    </tr>
+    <tr>
+      <td>Wage winsorized intensity</td>
+      <td>Log average weekly wage</td>
+      <td>winsorized (1st/99th pct)</td>
+      <td>0.0002 (0.0004)</td>
+      <td>[-0.0007, 0.0011]</td>
+      <td>0.644</td>
+      <td>0.02%</td>
+      <td>3221</td>
+      <td>HC1</td>
+    </tr>
+  </tbody>
+</table>
+      </article>
+    </section>
+
+    <p class="foot">Notes: * p&lt;0.10, ** p&lt;0.05, *** p&lt;0.01. Coefficients are conditional associations, not causal effects.</p>
+  </main>
+</body>
+</html>

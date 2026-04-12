@@ -1,0 +1,3 @@
+spec,spec_label,outcome,outcome_label,intensity_measure,coef,std_error,ci_low,ci_high,p_value,stars,nobs,n_sample,r2,se_type,implied_pct_change_per_1pp
+baseline_rent_hc1,Rent baseline (HC1),ln_median_gross_rent,Log median gross rent,raw,0.0015138464920189,0.0003194105637104,0.000887801787146516,0.0021398911968912838,2.1424582053924534e-06,***,3214,3214,0.8262549201132598,HC1,0.15149929360600556
+baseline_wage_hc1,Wage baseline (HC1),ln_avg_weekly_wage,Log average weekly wage,raw,0.0001402537804734,0.0003455222399151,-0.000536969809760196,0.000817477370706996,0.6848026734541,,3221,3221,0.5359609638187279,HC1,0.014026361649466246
