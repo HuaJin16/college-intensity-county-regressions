@@ -217,6 +217,8 @@ def load_data_summary(data_path: Path) -> dict[str, object]:
     county_total = int(len(df))
     no_college_count = county_total - has_college_count
     college_share = 100.0 * has_college_count / county_total if county_total else 0.0
+    includes_puerto_rico = bool(df["state_fips"].eq("72").any()) if "state_fips" in df.columns else False
+    scope_label = "50 states + DC + Puerto Rico" if includes_puerto_rico else "50 states + DC"
 
     return {
         "county_total": county_total,
@@ -224,6 +226,7 @@ def load_data_summary(data_path: Path) -> dict[str, object]:
         "no_college_count": no_college_count,
         "institution_total": institution_total,
         "college_share": college_share,
+        "scope_label": scope_label,
     }
 
 
@@ -741,6 +744,7 @@ def write_presentation_html(
     no_college_count = int(data_summary["no_college_count"])
     institution_total = int(data_summary["institution_total"])
     college_share = float(data_summary["college_share"])
+    scope_label = str(data_summary["scope_label"])
 
     html = f"""<!doctype html>
 <html lang=\"en\">
@@ -872,7 +876,7 @@ def write_presentation_html(
   <main class=\"wrap\">
     <section class=\"hero\">
       <h1>County College Intensity - Presentation Summary</h1>
-      <p>Cross-sectional county regressions for rent and wage outcomes (50 states + DC + Puerto Rico).</p>
+      <p>Cross-sectional county regressions for rent and wage outcomes ({scope_label}).</p>
       <p>Generated: {generated_on}</p>
     </section>
 

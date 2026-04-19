@@ -2,11 +2,11 @@
 
 ## Open
 - We study 3,222 counties and ask a simple question: do counties with more college activity tend to have higher rents and higher wages?
-- About 44.2% of counties have measured college enrollment, so separating presence from size matters empirically.
+- About 44.5% of counties have measured college enrollment, so separating presence from size matters empirically.
 
 ## Baseline story
-- In the pooled baseline rent model, a 1 percentage-point increase in college intensity is associated with about 0.15% higher rent (p<0.001).
-- In the pooled baseline wage model, the estimate is only about 0.01% per +1 pp and is statistically weak (p=0.685).
+- In the pooled baseline rent model, a 1 percentage-point increase in college intensity is associated with about 0.16% higher rent (p<0.001).
+- In the pooled baseline wage model, the estimate is only about 0.01% per +1 pp and is statistically weak (p=0.814).
 
 ## Main interpretation
 - The rent result is mostly an intensive-margin story: simple college presence is close to zero, but larger college footprints inside college counties are associated with higher rents.

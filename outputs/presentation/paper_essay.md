@@ -2,9 +2,9 @@
 
 ## 1. Abstract
 
-This paper studies whether U.S. counties with more college activity are associated with higher median gross rent and higher average weekly wage, and whether that relationship reflects simple college presence or the scale of local college activity. The analysis is cross-sectional, county-level (`county_fips`), and explicitly associational rather than causal. The final merged dataset contains 3,222 counties (50 states + DC + Puerto Rico) built from ACS 2020-2024 5-year county data, 2024 QCEW county wage/employment data, IPEDS 2024 institution-level enrollment/location data aggregated to county, and a county metro crosswalk. College intensity is defined as county college enrollment divided by county population and reported as percentage points (`college_intensity_pct = 100 * college_intensity`).
+This paper studies whether U.S. counties with more college activity are associated with higher median gross rent and higher average weekly wage, and whether that relationship reflects simple college presence or the scale of local college activity. The analysis is cross-sectional, county-level (`county_fips`), and explicitly associational rather than causal. The final merged dataset contains 3,144 county-level observations from the 50 states and DC, built from ACS 2020-2024 5-year county data, 2024 QCEW county wage/employment data, IPEDS 2024 institution-level enrollment/location data aggregated to county, and a county metro crosswalk. College intensity is defined as county college enrollment divided by county population and reported as percentage points (`college_intensity_pct = 100 * college_intensity`).
 
-Baseline rent and wage models are estimated with OLS, state fixed effects, and HC1 robust standard errors. Baseline rent results show a positive and statistically strong association between college intensity and log median gross rent (beta = 0.0015, SE = 0.0003, p < 0.001), which implies approximately 0.15% higher rent for a 1 percentage-point increase in college intensity. Baseline wage results show a near-zero association with log average weekly wage (beta = 0.0001, SE = 0.0003, p = 0.685). An added extensive/intensive decomposition shows that the rent relationship is concentrated on the intensive margin: simple college presence is near zero in the pooled sample, while higher college intensity among college counties remains positively associated with rent. For wages, the pooled two-part specification remains close to zero on both margins, although the positive-college sample shows a modest positive intensive-margin estimate. Robustness checks show that the rent estimate is sensitive to added controls (`renter_share`, `ba_share`) but remains positive under state-clustered inference and winsorized intensity.
+Baseline rent and wage models are estimated with OLS, state fixed effects, and HC1 robust standard errors. Baseline rent results show a positive and statistically strong association between college intensity and log median gross rent (beta = 0.0016, SE = 0.0003, p < 0.001), which implies about 0.16% higher rent for a 1 percentage-point increase in college intensity. Baseline wage results show a near-zero association with log average weekly wage (beta = 0.0001, SE = 0.0003, p = 0.814). An added extensive/intensive decomposition shows that the rent relationship is concentrated on the intensive margin: simple college presence is near zero in the pooled sample, while higher college intensity among college counties remains positively associated with rent. For wages, the pooled two-part specification remains close to zero on both margins, and the only positive signal appears in the college-county-only intensive-margin specification. Robustness checks show that the rent estimate is sensitive to added controls (`renter_share`, `ba_share`) but remains positive under state-clustered inference and winsorized intensity.
 
 The contribution of this paper is a transparent, reproducible county workflow that keeps no-college counties in sample, documents merge and missingness decisions, and separates baseline from robustness specifications for classroom interpretability.
 
@@ -30,87 +30,41 @@ The county is an appropriate unit because major data sources (ACS, QCEW, IPEDS g
 
 ### 4.1 Sources and year alignment
 
-The analysis uses:
+This analysis combines four main data sources. First, I use ACS 5-year county data for 2020-2024, accessed through the 2024 ACS API, to measure population, median gross rent, median household income, and several housing and education characteristics. Second, I use 2024 BLS QCEW county data to measure average weekly wage and total county employment. Third, I use 2024 IPEDS files (HD and EFIA), which are aggregated from the institution level up to the county level to create county college enrollment totals. Fourth, I use the QCEW county-MSA-CSA crosswalk to create a county-level metro/nonmetro indicator.
 
-- **ACS 5-year county data (2020-2024, accessed via 2024 ACS API endpoint)** for population, rent, income, and housing/education shares.
-- **BLS QCEW county annual data (2024)** for average weekly wage and total county employment.
-- **IPEDS 2024 files (HD + EFIA)** aggregated from institution level to county enrollment totals.
-- **QCEW county-MSA-CSA crosswalk** transformed into a metro/nonmetro county indicator.
-
-Why ACS 5-year estimates are used instead of ACS 1-year 2024:
-
-- The project targets near-universe county coverage with one row per county. ACS 5-year supports this county scope, while ACS 1-year excludes many small counties.
-- ACS 5-year estimates are more stable for small-area variables (rent, income, housing shares, education shares) because they pool multiple years of survey responses.
-- Using ACS 1-year would shift the sample toward larger counties and metros, reducing comparability across places and changing the interpretation of county-level associations.
-- Tradeoff: ACS 5-year is a 2020-2024 average while QCEW/IPEDS are 2024 snapshots. We therefore treat alignment as nearest-year and interpret results as cross-sectional associations under mixed-year timing.
+I use ACS 5-year data instead of ACS 1-year data because this project is designed to cover as much of the county universe as possible, with one observation per county-level unit. The ACS 5-year files support that goal, while ACS 1-year data leave out many smaller counties. The 5-year estimates are also more stable for small-area variables like rent, income, housing shares, and education shares because they combine several years of survey responses. The tradeoff is that the ACS data reflect a 2020-2024 average, while the QCEW and IPEDS data are 2024 snapshots. Because of this, I treat the data as the closest available year match and interpret the results as cross-sectional associations rather than exact same-year comparisons.
 
 ### 4.2 Unit of analysis and geography scope
 
-- Unit: U.S. county (`county_fips`), one row per county.
-- Scope: `us_50_dc_pr` (50 states + DC + Puerto Rico).
-- ACS master counties retained: **3,222**.
+The unit of analysis is the county-level geographic unit identified by `county_fips`, and the final dataset includes one row per unit. The geographic scope is `us_50_dc`, which includes the 50 states and DC but excludes Puerto Rico. After applying this scope, the ACS master file contains 3,144 county-level observations, and that county list serves as the base for the merged dataset.
 
 ### 4.3 Variable construction
 
-Main regressor:
+The main explanatory variable is `college_intensity`, defined as `college_enrollment_total / population`. For easier interpretation, I also report `college_intensity_pct`, which equals `100 * college_intensity`, so it can be read in percentage points. In addition, I create `has_college`, which equals 1 if `college_enrollment_total > 0` and 0 otherwise. This lets the analysis separate whether a county has any measured college presence at all from how large that presence is.
 
-- `college_intensity = college_enrollment_total / population`
-- `college_intensity_pct = 100 * college_intensity`
-- `has_college = 1[college_enrollment_total > 0]`
-
-Outcomes:
-
-- `median_gross_rent` (ACS `B25064_001E`), modeled as `ln_median_gross_rent`.
-- `avg_weekly_wage` (QCEW `annual_avg_wkly_wage`, with `avg_annual_pay/52` fallback if needed), modeled as `ln_avg_weekly_wage`.
-
-Key controls:
-
-- `ln_median_household_income` from ACS `B19013_001E`.
-- `ln_population` from ACS `B01003_001E`.
-- `metro` (MSA = 1; MicroSA or unassigned CBSA = 0).
-- `C(state_fips)` fixed effects.
-
-Robustness-only controls include `renter_share`, `vacancy_rate`, and `ba_share`.
+The two outcome variables are `median_gross_rent` and `avg_weekly_wage`. Median gross rent comes from ACS table `B25064_001E` and is modeled as `ln_median_gross_rent`. Average weekly wage comes from QCEW using `annual_avg_wkly_wage`, with a fallback of `avg_annual_pay / 52` when needed, and is modeled as `ln_avg_weekly_wage`. The main control variables are `ln_median_household_income` from ACS `B19013_001E`, `ln_population` from ACS `B01003_001E`, a `metro` indicator where metropolitan counties equal 1 and micropolitan or non-CBSA counties equal 0, and `C(state_fips)` state fixed effects. In some robustness checks, I also include `renter_share`, `vacancy_rate`, and `ba_share`.
 
 ### 4.4 Cleaning and merge design
 
-FIPS cleaning follows a common rule across files: cast to string, trim, strip non-digits, zero-pad to 5 digits, keep valid county FIPS. Merge order is ACS master -> QCEW -> county-aggregated IPEDS -> metro crosswalk using left joins.
+To make the files compatible, I clean county FIPS codes the same way across all sources. I convert them to strings, trim spaces, remove non-digit characters, zero-pad them to five digits, and keep only valid county FIPS codes. The merge begins with the ACS county file as the master dataset, then adds QCEW county data, county-aggregated IPEDS data, and finally the metro crosswalk using left joins.
 
-Coverage and filtering diagnostics:
-
-- QCEW unique counties before ACS-universe filter: **3,275**; retained after filter: **3,221**.
-- IPEDS unique counties before filter: **1,429**; retained after filter: **1,425**.
-- Out-of-scope dropped prior to merge: QCEW **54** (including **51** pseudo-FIPS ending in `999`), IPEDS **4**.
+Before restricting to the ACS-based scope, the QCEW file contained 3,275 unique counties and the IPEDS county aggregate contained 1,429. After applying the `us_50_dc` scope, 3,143 QCEW counties and 1,398 IPEDS counties remained. This means 132 QCEW county codes were dropped as out of scope, including 51 pseudo-FIPS codes ending in `999`, and 31 IPEDS county codes were also dropped before the final merge.
 
 ### 4.5 IPEDS-specific decisions
 
-IPEDS county aggregation metadata reports:
-
-- Cleaned institution rows: **6,072**.
-- Included in county aggregation: **5,858**.
-- Excluded: **214** institutions (211 missing enrollment, 3 missing/unmappable county FIPS).
-- Enrollment measure used: **FTE fallback** (`EFTEUG/FTEUG + EFTEGD/FTEGD + FTEDPP`) because a direct 12-month headcount field was not available in this release.
-
-County aggregation output includes **1,429** counties with positive/nonmissing enrollment totals.
+The IPEDS county aggregation required a few extra decisions. After cleaning, the IPEDS institutional file contained 6,072 institution rows. Of these, 5,858 were included in the county aggregation, while 214 were excluded. Most exclusions came from missing enrollment values (211 institutions), and 3 more were excluded because their county FIPS were missing or could not be mapped. Because this release did not provide a direct 12-month enrollment headcount in a usable form, I used an FTE fallback measure based on undergraduate, graduate, and professional FTE counts. Before geography filtering, the county-level IPEDS aggregate includes 1,429 counties with positive or nonmissing enrollment totals.
 
 ### 4.6 Final analytic sample and missingness
 
-- Merged rows: **3,222** (unique county FIPS = 3,222).
-- Missing in merged data: `median_gross_rent` = 7 counties; `median_household_income` = 1 county; `avg_weekly_wage` = 1 county.
-- Counties with `college_enrollment_total = 0`: **1,797**.
-- Named missing-outcome/control counties from merge QC: rent is missing in Alpine (CA), Sierra (CA), Borden (TX), Kenedy (TX), King (TX), Loving (TX), and Terrell (TX); median household income is missing in De Baca (NM); average weekly wage is missing in Kalawao (HI).
+The final merged dataset contains 3,144 rows, with one unique row for each county-level unit in scope. Missing data are limited but still important. Median gross rent is missing for 7 counties, median household income is missing for 1 county, and average weekly wage is missing for 1 county. There are 1,746 counties with `college_enrollment_total = 0`, meaning more than half of the counties in the sample have no measured college enrollment in this construction.
 
-Model complete-case sample sizes:
-
-- Rent baseline N = **3,214** (8 dropped from merged frame).
-- Wage baseline N = **3,221** (1 dropped from merged frame).
+The missing counties are identified in the merge quality-control report. Rent is missing for Alpine and Sierra in California, and Borden, Kenedy, King, Loving, and Terrell in Texas. Median household income is missing for De Baca, New Mexico. Average weekly wage is missing for Kalawao, Hawaii. After applying complete-case rules for each model, the baseline rent regression uses 3,136 counties, meaning 8 are dropped from the merged dataset, while the baseline wage regression uses 3,143 counties, meaning only 1 county is dropped.
 
 ### 4.7 Descriptive patterns
 
-- `college_intensity_pct` is highly right-skewed: median = 0.00, 75th percentile = 3.26, 90th = 7.95, 99th = 31.58, max = 118.71 (Lynchburg city, VA).
-- A value above 100% can occur because the numerator is institution-reported enrollment headcount (location-based) while the denominator is resident county population; high student-concentration counties can therefore exceed 100 in this ratio.
-- Metro distribution in final data: 1,251 metro counties and 1,971 nonmetro counties.
-- Positive-intensity counties: 1,425 (44.2% of counties), implying most counties have zero measured local college enrollment in this construction.
+The distribution of `college_intensity_pct` is highly right-skewed. The median is 0.00, the 75th percentile is 3.28, the 90th percentile is 7.95, the 99th percentile is 31.65, and the maximum is 118.71 in Lynchburg city, Virginia. A value above 100% is possible because the numerator is institution-reported enrollment tied to the county where the school is located, while the denominator is the county's resident population. In counties with very large student populations relative to permanent residents, this ratio can therefore exceed 100%.
+
+The final sample includes 1,185 metro counties and 1,959 nonmetro counties. There are 1,398 counties with positive college intensity, which is about 44.5% of the sample. This means most counties in the dataset have zero measured local college enrollment, which is one reason it is useful to separate the extensive margin of college presence from the intensive margin of college size.
 
 ## 5. Methodology
 
@@ -120,9 +74,9 @@ Reproducibility capsule (exact workflow and outputs):
 
 1. Build harmonized county inputs as needed:
    - `python src/data/02_build_ipeds_county.py` -> `data/intermediate/ipeds_county_aggregate_2024.csv` and audit metadata.
-   - `python src/data/02_build_metro_crosswalk.py` -> `data/raw/metro_crosswalk.csv`.
+   - `python src/data/02_build_metro_crosswalk.py --county-universe data/raw/acs_county_2024.csv` -> `data/raw/metro_crosswalk.csv`.
 2. Build analytical county dataset:
-   - `python src/data/02_build_county_dataset.py --year 2024` -> `data/processed/county_analysis_2024.csv` and `data/intermediate/merge_qc_2024.md`.
+   - `python src/data/02_build_county_dataset.py --year 2024 --geography-scope us_50_dc` -> `data/processed/county_analysis_2024.csv` and `data/intermediate/merge_qc_2024.md`.
 3. Estimate baseline and robustness regressions:
    - `python src/models/03_run_models.py --input data/processed/county_analysis_2024.csv --outdir outputs` -> `outputs/tables/*.csv` and `outputs/memos/limitations.md`.
 4. Build presentation-ready outputs:
@@ -195,8 +149,8 @@ Interpretation rule: coefficients are conditional correlations in a cross sectio
 
 | Outcome model       | Coef on `college_intensity_pct` |     SE | p-value |            95% CI | Implied change per +1 pp intensity |    N |    R2 |
 | ------------------- | ------------------------------: | -----: | ------: | ----------------: | ---------------------------------: | ---: | ----: |
-| Rent baseline (HC1) |                          0.0015 | 0.0003 |  <0.001 |  [0.0009, 0.0021] |                        +0.15% rent | 3214 | 0.826 |
-| Wage reduced baseline (HC1; no industry shares) |                          0.0001 | 0.0003 |   0.685 | [-0.0005, 0.0008] |                        +0.01% wage | 3221 | 0.536 |
+| Rent baseline (HC1) |                          0.0016 | 0.0003 |  <0.001 |  [0.0009, 0.0022] |                        +0.16% rent | 3136 | 0.813 |
+| Wage reduced baseline (HC1; no industry shares) |                          0.0001 | 0.0003 |   0.814 | [-0.0006, 0.0008] |                        +0.01% wage | 3143 | 0.437 |
 
 For interpretation, outcomes are in logs while `college_intensity_pct` is in level percentage points, so the implied percent association for a +1 pp change is computed as `100 * (exp(beta) - 1)` (approximately `100 * beta` when beta is small).
 
@@ -209,12 +163,12 @@ Interpretation:
 
 The decomposition results clarify what is driving the baseline single-coefficient model.
 
-- **Rent, extensive-only:** `has_college` = -0.0006 (SE = 0.0056, p = 0.920).
+- **Rent, extensive-only:** `has_college` = 0.0002 (SE = 0.0057, p = 0.971).
 - **Rent, intensive-only positive-college sample:** `college_intensity_pct` = 0.0020 (SE = 0.0004, p < 0.001).
-- **Rent, pooled two-part model:** `has_college` = -0.0026 (SE = 0.0056, p = 0.647); `college_intensity_pct_positive_centered` = 0.0019 (SE = 0.0004, p < 0.001).
-- **Wage, extensive-only:** `has_college` = -0.0043 (SE = 0.0069, p = 0.530).
-- **Wage, intensive-only positive-college sample:** `college_intensity_pct` = 0.0008 (SE = 0.0004, p = 0.044).
-- **Wage, pooled two-part model:** `has_college` = -0.0047 (SE = 0.0069, p = 0.498); `college_intensity_pct_positive_centered` = 0.0003 (SE = 0.0004, p = 0.418).
+- **Rent, pooled two-part model:** `has_college` = -0.0020 (SE = 0.0057, p = 0.731); `college_intensity_pct_positive_centered` = 0.0019 (SE = 0.0004, p < 0.001).
+- **Wage, extensive-only:** `has_college` = -0.0060 (SE = 0.0070, p = 0.392).
+- **Wage, intensive-only positive-college sample:** `college_intensity_pct` = 0.0007 (SE = 0.0004, p = 0.050).
+- **Wage, pooled two-part model:** `has_college` = -0.0063 (SE = 0.0070, p = 0.367); `college_intensity_pct_positive_centered` = 0.0003 (SE = 0.0004, p = 0.454).
 
 Interpretation:
 
@@ -225,23 +179,23 @@ The rent-side two-part result is also robust to state-clustered inference and to
 
 ### 6.3 Robustness results for the key regressor
 
-- Rent, state-clustered SE: beta = 0.0015, SE = 0.0003, p < 0.001 (very similar to HC1 baseline).
-- Rent + renter share: beta = -0.0001, SE = 0.0003, p = 0.644.
-- Rent + BA share: beta = -0.0005, SE = 0.0003, p = 0.066.
-- Rent, winsorized intensity: beta = 0.0020, SE = 0.0004, p < 0.001.
-- Wage, state-clustered SE: beta = 0.0001, SE = 0.0003, p = 0.642.
-- Wage, winsorized intensity: beta = 0.0002, SE = 0.0004, p = 0.644.
+- Rent, state-clustered SE: beta = 0.0016, SE = 0.0003, p < 0.001 (very similar to HC1 baseline).
+- Rent + renter share: beta = -0.0001, SE = 0.0003, p = 0.717.
+- Rent + BA share: beta = -0.0005, SE = 0.0003, p = 0.095.
+- Rent, winsorized intensity: beta = 0.0021, SE = 0.0004, p < 0.001.
+- Wage, state-clustered SE: beta = 0.0001, SE = 0.0003, p = 0.784.
+- Wage, winsorized intensity: beta = 0.0001, SE = 0.0004, p = 0.799.
 
 The rent coefficient remains positive under clustered inference and winsorization but attenuates and changes sign when adding `renter_share` or `ba_share`. This sensitivity indicates that baseline rent associations partly overlap with local housing tenure structure and educational composition. Wage associations remain near zero across all tested variants.
 
 ### 6.4 Control-pattern context
 
-In baseline rent, `ln_median_household_income` (0.5883), `ln_population` (0.0738), and `metro` (0.0246, about +2.49%) are positive and statistically strong. In baseline wage, `ln_population` (0.0548) and `metro` (0.0506, about +5.19%) are also positive and significant. These control estimates align with expected scale and urbanicity gradients in county outcomes.
+In baseline rent, `ln_median_household_income` (0.5914), `ln_population` (0.0741), and `metro` (0.0236, about +2.38%) are positive and statistically strong. In baseline wage, `ln_population` (0.0548) and `metro` (0.0501, about +5.13%) are also positive and significant. These control estimates align with expected scale and urbanicity gradients in county outcomes.
 
 ### 6.5 Practical reading of magnitudes
 
-- A +10 percentage-point increase in college intensity corresponds to roughly +1.5% higher rent in the baseline rent specification (10 x 0.15%).
-- The analogous wage implication is about +0.14% in baseline and not statistically precise.
+- A +10 percentage-point increase in college intensity corresponds to roughly +1.6% higher rent in the baseline rent specification.
+- The analogous wage implication is about +0.08% in baseline and is not statistically precise.
 
 ## 7. Conclusions
 

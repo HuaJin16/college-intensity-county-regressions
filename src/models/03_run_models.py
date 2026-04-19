@@ -110,6 +110,14 @@ def parse_ipeds_metadata(path: Path) -> dict:
     return info
 
 
+def geography_scope_label(scope: str) -> str:
+    labels = {
+        "us_50_dc": "50 states + DC",
+        "us_50_dc_pr": "50 states + DC + Puerto Rico",
+    }
+    return labels.get(scope, scope)
+
+
 def parse_qcew_industry_profile(path: Path) -> dict:
     if not path.exists():
         return {}
@@ -327,16 +335,17 @@ def write_limitations_memo(
     scope = str(merge_qc_info.get("scope", "")).strip()
     qcew_out_of_scope = merge_qc_info.get("qcew_out_of_scope")
     ipeds_out_of_scope = merge_qc_info.get("ipeds_out_of_scope")
+    scope_label = geography_scope_label(scope)
     if scope and isinstance(qcew_out_of_scope, int) and isinstance(ipeds_out_of_scope, int):
         lines.append(
-            "- Geography scope is fixed to the ACS county universe for 50 states + DC + Puerto Rico "
+            f"- Geography scope is fixed to the ACS county universe for {scope_label} "
             f"(`{scope}`), so non-ACS-source county FIPS are excluded before merge "
             f"(QCEW dropped {qcew_out_of_scope:,} out-of-scope county FIPS; "
             f"IPEDS dropped {ipeds_out_of_scope:,})."
         )
     elif scope:
         lines.append(
-            "- Geography scope is fixed to the ACS county universe for 50 states + DC + Puerto Rico "
+            f"- Geography scope is fixed to the ACS county universe for {scope_label} "
             f"(`{scope}`), which may exclude counties/territories present in non-ACS sources."
         )
 

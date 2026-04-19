@@ -563,7 +563,7 @@ def build_dataset(
     acs_api_key: str = "",
     acs_out_path: Path | None = None,
     acs_only: bool = False,
-    geography_scope: str = "us_50_dc_pr",
+    geography_scope: str = "us_50_dc",
     qc_out_path: Path | None = None,
 ) -> pd.DataFrame:
     acs = fetch_acs_county(year=year, api_key=acs_api_key)
@@ -688,10 +688,10 @@ def main() -> None:
         "--geography-scope",
         type=str,
         choices=sorted(GEOGRAPHY_SCOPE_TO_STATES.keys()),
-        default="us_50_dc_pr",
+        default="us_50_dc",
         help=(
             "County geography scope applied to the ACS master frame. "
-            "Default keeps 50 states + DC + Puerto Rico."
+            "Default keeps 50 states + DC."
         ),
     )
     parser.add_argument(

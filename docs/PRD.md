@@ -14,7 +14,7 @@
 - The project aims for transparent, economically grounded conditioning variables that are easy to explain in class.
 
 ### Unit of analysis
-- U.S. county (`county_fips`)
+- county-level geographic unit identified by `county_fips`
 - One row per county in the final analytical dataset.
 
 ### Main explanatory variable
@@ -54,7 +54,7 @@
   - ACS 5-year: 2020-2024
   - QCEW: 2024 annual county data (or nearest available)
   - IPEDS: 2024 enrollment/location file (or nearest available)
-- Geography scope default: 50 states + DC + Puerto Rico (`us_50_dc_pr`) based on ACS county universe.
+- Geography scope default: 50 states + DC (`us_50_dc`) based on ACS county universe.
 - Start from ACS county universe, then merge in QCEW, aggregated IPEDS, and metro crosswalk by county FIPS.
 - Exclude non-ACS-source county FIPS outside the ACS universe before merge and report dropped out-of-scope counties.
 - Build model-specific complete-case samples.
@@ -146,7 +146,7 @@ python src/data/02_build_county_dataset.py \
   --qcew data/raw/qcew_county.csv \
   --ipeds data/raw/ipeds_institutions.csv \
   --metro data/raw/metro_crosswalk.csv \
-  --geography-scope us_50_dc_pr \
+  --geography-scope us_50_dc \
   --acs-out data/raw/acs_county_2024.csv \
   --output data/processed/county_analysis_2024.csv
 ```
@@ -961,7 +961,7 @@ matplotlib
 3. Exact IPEDS enrollment field choice (fall total vs other enrollment measure).
 4. Metro definition source and coding rule (direct metro flag vs RUCC threshold).
 5. Handling of unresolved IPEDS county assignment records.
-6. Geography scope override to default (`us_50_dc_pr`) if instructor requires a different coverage rule.
+6. Geography scope override to default (`us_50_dc`) if instructor requires a different coverage rule.
 7. Minimum non-missing threshold for including industry-share controls in baseline wage model.
 8. Any source-specific column name differences to be mapped before first full run.
 
