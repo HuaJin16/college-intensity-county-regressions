@@ -28,6 +28,12 @@ Main regressor:
 - `college_intensity = college_enrollment_total / population`
 - preferred reporting scale: `college_intensity_pct = 100 * college_intensity`
 
+Extended college-margin variables:
+
+- `has_college = 1[college_enrollment_total > 0]`
+- extensive margin: whether a county has any measured college enrollment
+- intensive margin: how large `college_intensity_pct` is among counties with `has_college = 1`
+
 ## Default year alignment
 
 Unless explicitly changed:
@@ -67,6 +73,11 @@ Use the Census ACS API to extract county-level variables used directly in baseli
 ### Main regressor
 - `college_intensity_pct`
 
+### Margin-decomposition extension
+- `has_college`
+- `college_intensity_pct` in the positive-college sample
+- `has_college + college_intensity_pct_positive_centered` in pooled two-part specifications
+
 ### Rent model baseline controls
 - `ln_median_household_income`
 - `ln_population`
@@ -97,6 +108,19 @@ Baseline rent model:
 Baseline wage model:
 
 `ln_avg_weekly_wage ~ college_intensity_pct + ln_population + metro + industry_mix + C(state_fips)`
+
+Margin-decomposition extension:
+
+- Extensive-only:
+  - `ln_median_gross_rent ~ has_college + ln_median_household_income + ln_population + metro + C(state_fips)`
+  - `ln_avg_weekly_wage ~ has_college + ln_population + metro + industry_mix + C(state_fips)`
+- Intensive-only on the positive-college sample (`has_college == 1`):
+  - reuse the baseline formulas with `college_intensity_pct`
+- Combined two-part decomposition:
+  - `ln_median_gross_rent ~ has_college + college_intensity_pct_positive_centered + ln_median_household_income + ln_population + metro + C(state_fips)`
+  - `ln_avg_weekly_wage ~ has_college + college_intensity_pct_positive_centered + ln_population + metro + industry_mix + C(state_fips)`
+
+The centered intensive term is defined relative to the mean positive-county college intensity, so the `has_college` coefficient is interpretable as the difference between no-college counties and counties with an average positive college presence.
 
 Inference defaults:
 
@@ -230,6 +254,7 @@ python src/models/03_run_models.py --input data/processed/county_analysis_<YEAR>
 ## Current status
 
 - Implemented now: ACS county extraction (`--acs-only`), raw download helper, metro crosswalk builder, ACS-universe merge validation with geography scope filtering, and `src/models/03_run_models.py` for baseline + robustness regressions.
+- Implemented now: explicit `has_college` construction in the county dataset and an extensive/intensive margin decomposition table in `outputs/tables/margin_decomposition.csv`.
 
 ## Expected outputs
 
@@ -237,6 +262,7 @@ python src/models/03_run_models.py --input data/processed/county_analysis_<YEAR>
 - `outputs/tables/baseline_rent.csv`
 - `outputs/tables/baseline_wage.csv`
 - `outputs/tables/robustness.csv`
+- `outputs/tables/margin_decomposition.csv`
 - `outputs/memos/limitations.md`
 
 ## Minimum class deliverable

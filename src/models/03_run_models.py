@@ -186,12 +186,14 @@ def sample_row(
     n_total: int,
     n_sample: int,
     se_type: str,
+    sample_filter: str = "all_counties",
 ) -> dict:
     return {
         "spec": spec,
         "outcome": outcome,
         "se_type": se_type,
         "formula": formula,
+        "sample_filter": sample_filter,
         "n_total": int(n_total),
         "n_sample": int(n_sample),
         "n_dropped": int(n_total - n_sample),
@@ -231,6 +233,53 @@ def choose_industry_controls(
             selected.append(control)
 
     return selected, coverage
+
+
+def add_college_margin_variables(
+    df: pd.DataFrame,
+    winsor_lower: float,
+    winsor_upper: float,
+) -> dict[str, float]:
+    if "college_enrollment_total" not in df.columns and "has_college" not in df.columns:
+        raise ValueError("Need `college_enrollment_total` or `has_college` to build margin variables.")
+    if "college_intensity_pct" not in df.columns:
+        raise ValueError("Need `college_intensity_pct` to build margin variables.")
+
+    if "has_college" in df.columns:
+        has_college = pd.to_numeric(df["has_college"], errors="coerce").fillna(0)
+        df["has_college"] = (has_college > 0).astype(int)
+    else:
+        college_enrollment = pd.to_numeric(df["college_enrollment_total"], errors="coerce").fillna(0.0)
+        df["has_college"] = (college_enrollment > 0).astype(int)
+
+    intensity = pd.to_numeric(df["college_intensity_pct"], errors="coerce")
+    positive_mask = df["has_college"].eq(1)
+    positive_intensity = intensity.loc[positive_mask].dropna()
+    if positive_intensity.empty:
+        raise ValueError("No positive-college counties available for margin decomposition.")
+
+    positive_mean = float(positive_intensity.mean())
+    centered = pd.Series(0.0, index=df.index, dtype=float)
+    centered.loc[positive_mask] = intensity.loc[positive_mask] - positive_mean
+    centered = centered.where(~positive_mask | intensity.notna(), float("nan"))
+    df["college_intensity_pct_positive_centered"] = centered
+
+    positive_winsorized = winsorize(
+        series=positive_intensity,
+        lower_q=winsor_lower,
+        upper_q=winsor_upper,
+    )
+    positive_winsorized_mean = float(positive_winsorized.mean())
+    winsorized_centered = pd.Series(0.0, index=df.index, dtype=float)
+    winsorized_centered.loc[positive_mask] = positive_winsorized - positive_winsorized_mean
+    winsorized_centered = winsorized_centered.where(~positive_mask | intensity.notna(), float("nan"))
+    df["college_intensity_pct_positive_winsorized_centered"] = winsorized_centered
+
+    return {
+        "positive_college_counties": int(positive_mask.sum()),
+        "positive_intensity_mean": positive_mean,
+        "positive_intensity_winsorized_mean": positive_winsorized_mean,
+    }
 
 
 def write_limitations_memo(
@@ -299,6 +348,14 @@ def write_limitations_memo(
         ]
     )
 
+    excluded_missing_enrollment = ipeds_metadata_info.get("excluded_missing_enrollment")
+    if isinstance(excluded_missing_enrollment, int) and excluded_missing_enrollment > 0:
+        lines.append(
+            "- Extensive-margin models define `has_college = 1[college_enrollment_total > 0]`; because "
+            f"{excluded_missing_enrollment:,} IPEDS institutions were excluded for missing enrollment, "
+            "some counties with institution records may still be coded as `has_college = 0`."
+        )
+
     if industry_controls:
         lines.append(
             f"- Baseline wage model includes industry controls that met coverage threshold ({min_industry_coverage:.0%}): {', '.join(industry_controls)}."
@@ -322,7 +379,6 @@ def write_limitations_memo(
 
     enrollment_step = str(ipeds_metadata_info.get("enrollment_step", "")).strip()
     excluded_total = ipeds_metadata_info.get("excluded_total")
-    excluded_missing_enrollment = ipeds_metadata_info.get("excluded_missing_enrollment")
     excluded_missing_geo = ipeds_metadata_info.get("excluded_missing_geo")
     if (
         enrollment_step == "fte_fallback"
@@ -425,6 +481,7 @@ def main() -> None:
         "ln_median_gross_rent",
         "ln_avg_weekly_wage",
         "college_intensity_pct",
+        "has_college",
         "ln_median_household_income",
         "ln_population",
         "metro",
@@ -447,6 +504,12 @@ def main() -> None:
     tables_dir.mkdir(parents=True, exist_ok=True)
     figures_dir.mkdir(parents=True, exist_ok=True)
     memos_dir.mkdir(parents=True, exist_ok=True)
+
+    margin_info = add_college_margin_variables(
+        df=df,
+        winsor_lower=args.winsor_lower,
+        winsor_upper=args.winsor_upper,
+    )
 
     rent_formula = (
         "ln_median_gross_rent ~ college_intensity_pct + ln_median_household_income + "
@@ -482,6 +545,7 @@ def main() -> None:
 
     n_total = len(df)
     sample_rows: list[dict] = []
+    summary_rows: list[dict] = []
     skipped_specs: list[str] = []
 
     rent_base, rent_sample, rent_se_type = fit_ols(
@@ -497,6 +561,15 @@ def main() -> None:
         se_type=rent_se_type,
     )
     baseline_rent.to_csv(tables_dir / "baseline_rent.csv", index=False)
+    summary_rows.append(
+        {
+            "spec": "baseline_rent_hc1",
+            "formula": rent_formula,
+            "nobs": int(rent_base.nobs),
+            "r2": rent_base.rsquared,
+            "adj_r2": rent_base.rsquared_adj,
+        }
+    )
     sample_rows.append(
         sample_row(
             spec="baseline_rent_hc1",
@@ -521,6 +594,15 @@ def main() -> None:
         se_type=wage_se_type,
     )
     baseline_wage.to_csv(tables_dir / "baseline_wage.csv", index=False)
+    summary_rows.append(
+        {
+            "spec": "baseline_wage_hc1",
+            "formula": wage_formula,
+            "nobs": int(wage_base.nobs),
+            "r2": wage_base.rsquared,
+            "adj_r2": wage_base.rsquared_adj,
+        }
+    )
     sample_rows.append(
         sample_row(
             spec="baseline_wage_hc1",
@@ -729,30 +811,439 @@ def main() -> None:
         )
     )
 
+    margin_tables = []
+
+    rent_extensive_formula = (
+        "ln_median_gross_rent ~ has_college + ln_median_household_income + "
+        "ln_population + metro + C(state_fips)"
+    )
+    rent_extensive_needed = [
+        "ln_median_gross_rent",
+        "has_college",
+        "ln_median_household_income",
+        "ln_population",
+        "metro",
+        "state_fips",
+    ]
+    rent_extensive, rent_extensive_sample, rent_extensive_se = fit_ols(
+        df=df,
+        formula=rent_extensive_formula,
+        required_cols=rent_extensive_needed,
+        cluster_state=False,
+    )
+    margin_tables.append(
+        tidy_result(
+            result=rent_extensive,
+            spec="rent_extensive_hc1",
+            outcome="ln_median_gross_rent",
+            se_type=rent_extensive_se,
+        )
+    )
+    summary_rows.append(
+        {
+            "spec": "rent_extensive_hc1",
+            "formula": rent_extensive_formula,
+            "nobs": int(rent_extensive.nobs),
+            "r2": rent_extensive.rsquared,
+            "adj_r2": rent_extensive.rsquared_adj,
+        }
+    )
+    sample_rows.append(
+        sample_row(
+            spec="rent_extensive_hc1",
+            outcome="ln_median_gross_rent",
+            formula=rent_extensive_formula,
+            n_total=n_total,
+            n_sample=len(rent_extensive_sample),
+            se_type=rent_extensive_se,
+        )
+    )
+
+    rent_intensive_positive, rent_intensive_positive_sample, rent_intensive_positive_se = fit_ols(
+        df=df[df["has_college"] == 1].copy(),
+        formula=rent_formula,
+        required_cols=rent_needed,
+        cluster_state=False,
+    )
+    margin_tables.append(
+        tidy_result(
+            result=rent_intensive_positive,
+            spec="rent_intensive_positive_hc1",
+            outcome="ln_median_gross_rent",
+            se_type=rent_intensive_positive_se,
+        )
+    )
+    summary_rows.append(
+        {
+            "spec": "rent_intensive_positive_hc1",
+            "formula": rent_formula,
+            "nobs": int(rent_intensive_positive.nobs),
+            "r2": rent_intensive_positive.rsquared,
+            "adj_r2": rent_intensive_positive.rsquared_adj,
+        }
+    )
+    sample_rows.append(
+        sample_row(
+            spec="rent_intensive_positive_hc1",
+            outcome="ln_median_gross_rent",
+            formula=rent_formula,
+            n_total=n_total,
+            n_sample=len(rent_intensive_positive_sample),
+            se_type=rent_intensive_positive_se,
+            sample_filter="has_college == 1",
+        )
+    )
+
+    rent_two_part_formula = (
+        "ln_median_gross_rent ~ has_college + college_intensity_pct_positive_centered + "
+        "ln_median_household_income + ln_population + metro + C(state_fips)"
+    )
+    rent_two_part_needed = [
+        "ln_median_gross_rent",
+        "has_college",
+        "college_intensity_pct_positive_centered",
+        "ln_median_household_income",
+        "ln_population",
+        "metro",
+        "state_fips",
+    ]
+    rent_two_part, rent_two_part_sample, rent_two_part_se = fit_ols(
+        df=df,
+        formula=rent_two_part_formula,
+        required_cols=rent_two_part_needed,
+        cluster_state=False,
+    )
+    margin_tables.append(
+        tidy_result(
+            result=rent_two_part,
+            spec="rent_two_part_hc1",
+            outcome="ln_median_gross_rent",
+            se_type=rent_two_part_se,
+        )
+    )
+    summary_rows.append(
+        {
+            "spec": "rent_two_part_hc1",
+            "formula": rent_two_part_formula,
+            "nobs": int(rent_two_part.nobs),
+            "r2": rent_two_part.rsquared,
+            "adj_r2": rent_two_part.rsquared_adj,
+        }
+    )
+    sample_rows.append(
+        sample_row(
+            spec="rent_two_part_hc1",
+            outcome="ln_median_gross_rent",
+            formula=rent_two_part_formula,
+            n_total=n_total,
+            n_sample=len(rent_two_part_sample),
+            se_type=rent_two_part_se,
+        )
+    )
+
+    rent_two_part_cluster, rent_two_part_cluster_sample, rent_two_part_cluster_se = fit_ols(
+        df=df,
+        formula=rent_two_part_formula,
+        required_cols=rent_two_part_needed,
+        cluster_state=True,
+    )
+    margin_tables.append(
+        tidy_result(
+            result=rent_two_part_cluster,
+            spec="rent_two_part_cluster_state",
+            outcome="ln_median_gross_rent",
+            se_type=rent_two_part_cluster_se,
+        )
+    )
+    summary_rows.append(
+        {
+            "spec": "rent_two_part_cluster_state",
+            "formula": rent_two_part_formula,
+            "nobs": int(rent_two_part_cluster.nobs),
+            "r2": rent_two_part_cluster.rsquared,
+            "adj_r2": rent_two_part_cluster.rsquared_adj,
+        }
+    )
+    sample_rows.append(
+        sample_row(
+            spec="rent_two_part_cluster_state",
+            outcome="ln_median_gross_rent",
+            formula=rent_two_part_formula,
+            n_total=n_total,
+            n_sample=len(rent_two_part_cluster_sample),
+            se_type=rent_two_part_cluster_se,
+        )
+    )
+
+    rent_two_part_w_formula = (
+        "ln_median_gross_rent ~ has_college + college_intensity_pct_positive_winsorized_centered + "
+        "ln_median_household_income + ln_population + metro + C(state_fips)"
+    )
+    rent_two_part_w_needed = [
+        "ln_median_gross_rent",
+        "has_college",
+        "college_intensity_pct_positive_winsorized_centered",
+        "ln_median_household_income",
+        "ln_population",
+        "metro",
+        "state_fips",
+    ]
+    rent_two_part_w, rent_two_part_w_sample, rent_two_part_w_se = fit_ols(
+        df=df,
+        formula=rent_two_part_w_formula,
+        required_cols=rent_two_part_w_needed,
+        cluster_state=False,
+    )
+    margin_tables.append(
+        tidy_result(
+            result=rent_two_part_w,
+            spec="rent_two_part_winsorized_intensity",
+            outcome="ln_median_gross_rent",
+            se_type=rent_two_part_w_se,
+        )
+    )
+    summary_rows.append(
+        {
+            "spec": "rent_two_part_winsorized_intensity",
+            "formula": rent_two_part_w_formula,
+            "nobs": int(rent_two_part_w.nobs),
+            "r2": rent_two_part_w.rsquared,
+            "adj_r2": rent_two_part_w.rsquared_adj,
+        }
+    )
+    sample_rows.append(
+        sample_row(
+            spec="rent_two_part_winsorized_intensity",
+            outcome="ln_median_gross_rent",
+            formula=rent_two_part_w_formula,
+            n_total=n_total,
+            n_sample=len(rent_two_part_w_sample),
+            se_type=rent_two_part_w_se,
+        )
+    )
+
+    wage_extensive_terms = ["has_college", "ln_population", "metro"] + industry_controls + [
+        "C(state_fips)"
+    ]
+    wage_extensive_formula = "ln_avg_weekly_wage ~ " + " + ".join(wage_extensive_terms)
+    wage_extensive_needed = [
+        "ln_avg_weekly_wage",
+        "has_college",
+        "ln_population",
+        "metro",
+        "state_fips",
+    ] + industry_controls
+    wage_extensive, wage_extensive_sample, wage_extensive_se = fit_ols(
+        df=df,
+        formula=wage_extensive_formula,
+        required_cols=wage_extensive_needed,
+        cluster_state=False,
+    )
+    margin_tables.append(
+        tidy_result(
+            result=wage_extensive,
+            spec="wage_extensive_hc1",
+            outcome="ln_avg_weekly_wage",
+            se_type=wage_extensive_se,
+        )
+    )
+    summary_rows.append(
+        {
+            "spec": "wage_extensive_hc1",
+            "formula": wage_extensive_formula,
+            "nobs": int(wage_extensive.nobs),
+            "r2": wage_extensive.rsquared,
+            "adj_r2": wage_extensive.rsquared_adj,
+        }
+    )
+    sample_rows.append(
+        sample_row(
+            spec="wage_extensive_hc1",
+            outcome="ln_avg_weekly_wage",
+            formula=wage_extensive_formula,
+            n_total=n_total,
+            n_sample=len(wage_extensive_sample),
+            se_type=wage_extensive_se,
+        )
+    )
+
+    wage_intensive_positive, wage_intensive_positive_sample, wage_intensive_positive_se = fit_ols(
+        df=df[df["has_college"] == 1].copy(),
+        formula=wage_formula,
+        required_cols=wage_needed,
+        cluster_state=False,
+    )
+    margin_tables.append(
+        tidy_result(
+            result=wage_intensive_positive,
+            spec="wage_intensive_positive_hc1",
+            outcome="ln_avg_weekly_wage",
+            se_type=wage_intensive_positive_se,
+        )
+    )
+    summary_rows.append(
+        {
+            "spec": "wage_intensive_positive_hc1",
+            "formula": wage_formula,
+            "nobs": int(wage_intensive_positive.nobs),
+            "r2": wage_intensive_positive.rsquared,
+            "adj_r2": wage_intensive_positive.rsquared_adj,
+        }
+    )
+    sample_rows.append(
+        sample_row(
+            spec="wage_intensive_positive_hc1",
+            outcome="ln_avg_weekly_wage",
+            formula=wage_formula,
+            n_total=n_total,
+            n_sample=len(wage_intensive_positive_sample),
+            se_type=wage_intensive_positive_se,
+            sample_filter="has_college == 1",
+        )
+    )
+
+    wage_two_part_terms = [
+        "has_college",
+        "college_intensity_pct_positive_centered",
+        "ln_population",
+        "metro",
+    ] + industry_controls + ["C(state_fips)"]
+    wage_two_part_formula = "ln_avg_weekly_wage ~ " + " + ".join(wage_two_part_terms)
+    wage_two_part_needed = [
+        "ln_avg_weekly_wage",
+        "has_college",
+        "college_intensity_pct_positive_centered",
+        "ln_population",
+        "metro",
+        "state_fips",
+    ] + industry_controls
+    wage_two_part, wage_two_part_sample, wage_two_part_se = fit_ols(
+        df=df,
+        formula=wage_two_part_formula,
+        required_cols=wage_two_part_needed,
+        cluster_state=False,
+    )
+    margin_tables.append(
+        tidy_result(
+            result=wage_two_part,
+            spec="wage_two_part_hc1",
+            outcome="ln_avg_weekly_wage",
+            se_type=wage_two_part_se,
+        )
+    )
+    summary_rows.append(
+        {
+            "spec": "wage_two_part_hc1",
+            "formula": wage_two_part_formula,
+            "nobs": int(wage_two_part.nobs),
+            "r2": wage_two_part.rsquared,
+            "adj_r2": wage_two_part.rsquared_adj,
+        }
+    )
+    sample_rows.append(
+        sample_row(
+            spec="wage_two_part_hc1",
+            outcome="ln_avg_weekly_wage",
+            formula=wage_two_part_formula,
+            n_total=n_total,
+            n_sample=len(wage_two_part_sample),
+            se_type=wage_two_part_se,
+        )
+    )
+
+    wage_two_part_cluster, wage_two_part_cluster_sample, wage_two_part_cluster_se = fit_ols(
+        df=df,
+        formula=wage_two_part_formula,
+        required_cols=wage_two_part_needed,
+        cluster_state=True,
+    )
+    margin_tables.append(
+        tidy_result(
+            result=wage_two_part_cluster,
+            spec="wage_two_part_cluster_state",
+            outcome="ln_avg_weekly_wage",
+            se_type=wage_two_part_cluster_se,
+        )
+    )
+    summary_rows.append(
+        {
+            "spec": "wage_two_part_cluster_state",
+            "formula": wage_two_part_formula,
+            "nobs": int(wage_two_part_cluster.nobs),
+            "r2": wage_two_part_cluster.rsquared,
+            "adj_r2": wage_two_part_cluster.rsquared_adj,
+        }
+    )
+    sample_rows.append(
+        sample_row(
+            spec="wage_two_part_cluster_state",
+            outcome="ln_avg_weekly_wage",
+            formula=wage_two_part_formula,
+            n_total=n_total,
+            n_sample=len(wage_two_part_cluster_sample),
+            se_type=wage_two_part_cluster_se,
+        )
+    )
+
+    wage_two_part_w_terms = [
+        "has_college",
+        "college_intensity_pct_positive_winsorized_centered",
+        "ln_population",
+        "metro",
+    ] + industry_controls + ["C(state_fips)"]
+    wage_two_part_w_formula = "ln_avg_weekly_wage ~ " + " + ".join(wage_two_part_w_terms)
+    wage_two_part_w_needed = [
+        "ln_avg_weekly_wage",
+        "has_college",
+        "college_intensity_pct_positive_winsorized_centered",
+        "ln_population",
+        "metro",
+        "state_fips",
+    ] + industry_controls
+    wage_two_part_w, wage_two_part_w_sample, wage_two_part_w_se = fit_ols(
+        df=df,
+        formula=wage_two_part_w_formula,
+        required_cols=wage_two_part_w_needed,
+        cluster_state=False,
+    )
+    margin_tables.append(
+        tidy_result(
+            result=wage_two_part_w,
+            spec="wage_two_part_winsorized_intensity",
+            outcome="ln_avg_weekly_wage",
+            se_type=wage_two_part_w_se,
+        )
+    )
+    summary_rows.append(
+        {
+            "spec": "wage_two_part_winsorized_intensity",
+            "formula": wage_two_part_w_formula,
+            "nobs": int(wage_two_part_w.nobs),
+            "r2": wage_two_part_w.rsquared,
+            "adj_r2": wage_two_part_w.rsquared_adj,
+        }
+    )
+    sample_rows.append(
+        sample_row(
+            spec="wage_two_part_winsorized_intensity",
+            outcome="ln_avg_weekly_wage",
+            formula=wage_two_part_w_formula,
+            n_total=n_total,
+            n_sample=len(wage_two_part_w_sample),
+            se_type=wage_two_part_w_se,
+        )
+    )
+
     robustness = pd.concat(robustness_tables, ignore_index=True)
     robustness.to_csv(tables_dir / "robustness.csv", index=False)
+
+    margin_decomposition = pd.concat(margin_tables, ignore_index=True)
+    margin_decomposition.to_csv(tables_dir / "margin_decomposition.csv", index=False)
 
     samples_df = pd.DataFrame(sample_rows)
     samples_df.to_csv(tables_dir / "model_samples.csv", index=False)
 
-    summary_stats = pd.DataFrame(
-        [
-            {
-                "spec": "baseline_rent_hc1",
-                "formula": rent_formula,
-                "nobs": int(rent_base.nobs),
-                "r2": rent_base.rsquared,
-                "adj_r2": rent_base.rsquared_adj,
-            },
-            {
-                "spec": "baseline_wage_hc1",
-                "formula": wage_formula,
-                "nobs": int(wage_base.nobs),
-                "r2": wage_base.rsquared,
-                "adj_r2": wage_base.rsquared_adj,
-            },
-        ]
-    )
+    summary_stats = pd.DataFrame(summary_rows)
     summary_stats.to_csv(tables_dir / "model_summary_stats.csv", index=False)
 
     residual_plot(
@@ -781,6 +1272,11 @@ def main() -> None:
 
     print(f"Baseline rent sample: {len(rent_sample):,} of {n_total:,} counties")
     print(f"Baseline wage sample: {len(wage_sample):,} of {n_total:,} counties")
+    print(
+        "Margin decomposition uses "
+        f"{margin_info['positive_college_counties']:,} counties with `has_college = 1` "
+        f"(mean positive-county intensity = {margin_info['positive_intensity_mean']:.2f} pp)."
+    )
     if industry_controls:
         print(f"Included wage industry controls: {industry_controls}")
     else:
@@ -794,6 +1290,7 @@ def main() -> None:
         )
 
     print(f"Saved tables: {tables_dir}")
+    print(f"Saved margin table: {tables_dir / 'margin_decomposition.csv'}")
     print(f"Saved figures: {figures_dir}")
     print(f"Saved memo: {memos_dir / 'limitations.md'}")
 

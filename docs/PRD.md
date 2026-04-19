@@ -21,6 +21,7 @@
 - `college_intensity = county_college_enrollment / county_population`
 - Enrollment comes from institution-level IPEDS records aggregated to county.
 - Counties with no colleges remain in sample with `college_enrollment_total = 0`.
+- Extended decomposition variable: `has_college = 1[college_enrollment_total > 0]`.
 
 ### Primary outcomes
 1. `median_gross_rent` (ACS 5-year, table B25064)
@@ -106,6 +107,7 @@ Current implementation checkpoint: ACS extraction (`--acs-only`), raw download h
   - Build model-specific complete-case samples.
   - Estimate baseline rent and wage models.
   - Estimate robustness specs (clustered SE, added controls, winsorized intensity).
+  - Estimate extensive-margin, intensive-margin, and combined two-part decomposition specs.
   - Export coefficient tables to CSV.
   - Save simple residual-vs-fitted plots.
 - Input: `data/processed/county_analysis_2024.csv`
@@ -113,6 +115,7 @@ Current implementation checkpoint: ACS extraction (`--acs-only`), raw download h
   - `outputs/tables/baseline_rent.csv`
   - `outputs/tables/baseline_wage.csv`
   - `outputs/tables/robustness.csv`
+  - `outputs/tables/margin_decomposition.csv`
   - `outputs/figures/*.png`
   - `outputs/memos/limitations.md`
 
@@ -204,6 +207,7 @@ Note: Some raw field names vary by release. Any uncertain names are marked "veri
 | `avg_weekly_wage` | `annual_avg_wkly_wage` (verify) or `avg_annual_pay/52` | QCEW county | Weekly wage | Parse suppressed; fallback from annual pay | Baseline wage outcome |
 | `ln_avg_weekly_wage` | derived | Derived | Log wage outcome | `ln(avg_weekly_wage)` if >0 | Baseline wage outcome |
 | `college_enrollment_total` | IPEDS total enrollment (`EFYTOTLT` or similar, verify) | IPEDS institution-level | County-summed enrollment | Aggregate institution records by county | Baseline key input |
+| `has_college` | derived | Derived | Indicator for any measured college enrollment in county | `1[college_enrollment_total > 0]` | Margin decomposition |
 | `institution_count` | `UNITID` (verify) | IPEDS | Institutions per county | County-level unique count | QA/robustness |
 | `college_intensity` | derived | Derived | Enrollment/population ratio | `college_enrollment_total/population` | Baseline key regressor |
 | `college_intensity_pct` | derived | Derived | Percentage-point scale of intensity | `100*college_intensity` | Baseline key regressor |
@@ -304,6 +308,25 @@ Why controls are included:
 3. Rent baseline with state-clustered SE.
 4. Wage baseline with state-clustered SE.
 5. Winsorized `college_intensity_pct` (1st/99th percentile) for both outcomes.
+
+### Extensive / intensive extension
+
+Use the baseline single-intensity model as the headline specification, then add a decomposition that separates whether any college is present from how large that presence is.
+
+- Extensive-only rent:
+  - `ln_median_gross_rent_i = beta0 + beta1*has_college_i + beta2*ln_median_household_income_i + beta3*ln_population_i + beta4*metro_i + StateFE + epsilon_i`
+- Intensive-only rent on the positive-college sample:
+  - reuse the baseline rent formula on counties with `has_college_i = 1`
+- Combined two-part rent:
+  - `ln_median_gross_rent_i = beta0 + beta1*has_college_i + beta2*college_intensity_pct_positive_centered_i + beta3*ln_median_household_income_i + beta4*ln_population_i + beta5*metro_i + StateFE + epsilon_i`
+- Extensive-only wage:
+  - `ln_avg_weekly_wage_i = alpha0 + alpha1*has_college_i + alpha2*ln_population_i + alpha3*metro_i + alpha4*industry_mix_i + StateFE + u_i`
+- Intensive-only wage on the positive-college sample:
+  - reuse the baseline wage formula on counties with `has_college_i = 1`
+- Combined two-part wage:
+  - `ln_avg_weekly_wage_i = alpha0 + alpha1*has_college_i + alpha2*college_intensity_pct_positive_centered_i + alpha3*ln_population_i + alpha4*metro_i + alpha5*industry_mix_i + StateFE + u_i`
+
+`college_intensity_pct_positive_centered` is centered around the mean positive-county college intensity so the `has_college` coefficient compares no-college counties to counties with an average positive college presence.
 
 ---
 

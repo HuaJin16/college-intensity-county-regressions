@@ -312,6 +312,7 @@ def write_merge_qc_report(
         f"- missing `median_gross_rent`: {int(merged['median_gross_rent'].isna().sum()):,}",
         f"- missing `median_household_income`: {int(merged['median_household_income'].isna().sum()):,}",
         f"- missing `avg_weekly_wage`: {int(merged['avg_weekly_wage'].isna().sum()):,}",
+        f"- counties with `has_college = 1`: {int(merged['has_college'].fillna(0).sum()):,}",
         f"- zero `college_enrollment_total`: {int((merged['college_enrollment_total'] == 0).sum()):,}",
         "",
         "## Complete-case model sample sizes",
@@ -599,6 +600,7 @@ def build_dataset(
     if "college_enrollment_total" not in df.columns:
         df["college_enrollment_total"] = 0.0
     df["college_enrollment_total"] = pd.to_numeric(df["college_enrollment_total"], errors="coerce").fillna(0.0)
+    df["has_college"] = (df["college_enrollment_total"] > 0).astype(int)
 
     if "institution_count" in df.columns:
         df["institution_count"] = pd.to_numeric(df["institution_count"], errors="coerce").fillna(0).astype(int)
@@ -629,6 +631,7 @@ def build_dataset(
         "avg_weekly_wage",
         "ln_avg_weekly_wage",
         "college_enrollment_total",
+        "has_college",
         "institution_count",
         "college_intensity",
         "college_intensity_pct",

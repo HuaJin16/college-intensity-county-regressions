@@ -92,7 +92,9 @@ python src/data/02_build_county_dataset.py --year 2024 --qcew data/raw/qcew_coun
 
 By default, a merge QC report is written to `data/intermediate/merge_qc_2024.md` (or `merge_qc_<year>.md`). Override with `--qc-out` if needed.
 
-Regression execution is available via `src/models/03_run_models.py` and writes outputs to `outputs/tables/`, `outputs/figures/`, and `outputs/memos/`.
+The processed county dataset now includes `has_college = 1[college_enrollment_total > 0]` for extensive-margin analysis.
+
+Regression execution is available via `src/models/03_run_models.py` and writes outputs to `outputs/tables/`, `outputs/figures/`, and `outputs/memos/`, including `outputs/tables/margin_decomposition.csv` for the extensive/intensive decomposition.
 
 ## Notes on field names
 
