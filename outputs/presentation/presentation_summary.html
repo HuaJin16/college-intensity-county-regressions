@@ -129,7 +129,7 @@
     <section class="hero">
       <h1>County College Intensity - Presentation Summary</h1>
       <p>Cross-sectional county regressions for rent and wage outcomes (50 states + DC).</p>
-      <p>Generated: 2026-04-18 20:43</p>
+      <p>Generated: 2026-04-19 16:10</p>
     </section>
 
     <section class="grid">
@@ -137,7 +137,7 @@
         <h2>Executive Takeaways</h2>
         <div class="takeaways">
           <ul>
-            <li><strong>Rent baseline:</strong> college intensity is positively associated with rent (beta=0.0016, p<0.001), about 0.16% higher rent per +1 pp college intensity.</li><li><strong>Wage baseline:</strong> association with wage is near zero and statistically weak (beta=0.0001, p=0.814, ~0.01% per +1 pp).</li><li><strong>Rent two-part:</strong> the college-presence indicator is near zero once college size is separated out, while the conditional intensity term remains positive and precise.</li><li><strong>Wage two-part:</strong> neither the presence indicator nor the pooled conditional-intensity term is precise in the full-sample decomposition.</li><li><strong>Interpretation:</strong> estimates are associational (cross-sectional), not causal.</li>
+            <li><strong>Rent baseline:</strong> college intensity is positively associated with rent (beta=0.0016, p<0.001), about 0.16% higher rent per +1 pp college intensity.</li><li><strong>Wage baseline:</strong> association with wage is near zero and statistically weak (beta=0.0001, p=0.814, ~0.01% per +1 pp).</li><li><strong>Rent extensive/intensive results:</strong> the extensive-margin indicator is near zero once the two margins are separated, while the intensive-margin term remains positive and precise.</li><li><strong>Wage extensive/intensive results:</strong> neither the extensive-margin indicator nor the pooled intensive-margin term is precise in the full-sample joint model.</li><li><strong>Interpretation:</strong> estimates are associational (cross-sectional), not causal.</li>
           </ul>
         </div>
       </article>
@@ -230,11 +230,11 @@
   <thead>
     <tr style="text-align: right;">
       <th>Outcome</th>
-      <th>Baseline pooled intensity</th>
-      <th>Presence only (0/1)</th>
+      <th>Pooled comparison</th>
+      <th>Extensive only (0/1)</th>
       <th>Intensive only (+1 pp)</th>
-      <th>Two-part presence (0/1)</th>
-      <th>Two-part intensity (+1 pp)</th>
+      <th>Joint extensive (0/1)</th>
+      <th>Joint intensive (+1 pp)</th>
       <th>Presentation takeaway</th>
     </tr>
   </thead>
@@ -246,7 +246,7 @@
       <td>+0.20% per +1 pp***</td>
       <td>-0.20%</td>
       <td>+0.19% per +1 pp***</td>
-      <td>Scale matters more than simple presence.</td>
+      <td>The intensive margin matters more than the extensive margin.</td>
     </tr>
     <tr>
       <td>Log average weekly wage</td>
@@ -389,7 +389,7 @@
       </article>
 
       <article class="card">
-        <h2>Margin Decomposition</h2>
+        <h2>Extensive And Intensive Margins</h2>
         <table class="dataframe results-table">
   <thead>
     <tr style="text-align: right;">
@@ -408,9 +408,9 @@
   </thead>
   <tbody>
     <tr>
-      <td>Rent presence only (HC1)</td>
+      <td>Rent extensive margin (HC1)</td>
       <td>Log median gross rent</td>
-      <td>College present (0/1)</td>
+      <td>Extensive margin (0/1)</td>
       <td>indicator</td>
       <td>0.0002 (0.0057)</td>
       <td>[-0.0110, 0.0114]</td>
@@ -421,9 +421,9 @@
       <td>HC1</td>
     </tr>
     <tr>
-      <td>Rent intensity among college counties</td>
+      <td>Rent intensive margin among college counties</td>
       <td>Log median gross rent</td>
-      <td>Intensity among college counties (1 pp)</td>
+      <td>Intensive margin among college counties (1 pp)</td>
       <td>raw</td>
       <td>0.0020*** (0.0004)</td>
       <td>[0.0012, 0.0029]</td>
@@ -434,9 +434,9 @@
       <td>HC1</td>
     </tr>
     <tr>
-      <td>Rent two-part decomposition</td>
+      <td>Rent joint extensive/intensive model</td>
       <td>Log median gross rent</td>
-      <td>College present (0/1)</td>
+      <td>Extensive margin (0/1)</td>
       <td>indicator</td>
       <td>-0.0020 (0.0057)</td>
       <td>[-0.0132, 0.0092]</td>
@@ -447,9 +447,9 @@
       <td>HC1</td>
     </tr>
     <tr>
-      <td>Rent two-part decomposition</td>
+      <td>Rent joint extensive/intensive model</td>
       <td>Log median gross rent</td>
-      <td>Conditional intensity (1 pp from positive-county mean)</td>
+      <td>Intensive margin (1 pp from positive-county mean)</td>
       <td>positive-county centered</td>
       <td>0.0019*** (0.0004)</td>
       <td>[0.0012, 0.0027]</td>
@@ -460,9 +460,9 @@
       <td>HC1</td>
     </tr>
     <tr>
-      <td>Rent two-part (state-clustered SE)</td>
+      <td>Rent joint model (state-clustered SE)</td>
       <td>Log median gross rent</td>
-      <td>College present (0/1)</td>
+      <td>Extensive margin (0/1)</td>
       <td>indicator</td>
       <td>-0.0020 (0.0063)</td>
       <td>[-0.0143, 0.0104]</td>
@@ -473,9 +473,9 @@
       <td>cluster_state</td>
     </tr>
     <tr>
-      <td>Rent two-part (state-clustered SE)</td>
+      <td>Rent joint model (state-clustered SE)</td>
       <td>Log median gross rent</td>
-      <td>Conditional intensity (1 pp from positive-county mean)</td>
+      <td>Intensive margin (1 pp from positive-county mean)</td>
       <td>positive-county centered</td>
       <td>0.0019*** (0.0004)</td>
       <td>[0.0012, 0.0026]</td>
@@ -486,9 +486,9 @@
       <td>cluster_state</td>
     </tr>
     <tr>
-      <td>Rent two-part winsorized intensity</td>
+      <td>Rent joint model, winsorized intensity</td>
       <td>Log median gross rent</td>
-      <td>College present (0/1)</td>
+      <td>Extensive margin (0/1)</td>
       <td>indicator</td>
       <td>-0.0025 (0.0057)</td>
       <td>[-0.0137, 0.0087]</td>
@@ -499,9 +499,9 @@
       <td>HC1</td>
     </tr>
     <tr>
-      <td>Rent two-part winsorized intensity</td>
+      <td>Rent joint model, winsorized intensity</td>
       <td>Log median gross rent</td>
-      <td>Conditional intensity, winsorized (1 pp from positive-county mean)</td>
+      <td>Intensive margin, winsorized (1 pp from positive-county mean)</td>
       <td>winsorized positive-county centered</td>
       <td>0.0025*** (0.0004)</td>
       <td>[0.0018, 0.0033]</td>
@@ -512,9 +512,9 @@
       <td>HC1</td>
     </tr>
     <tr>
-      <td>Wage presence only (HC1)</td>
+      <td>Wage extensive margin (HC1)</td>
       <td>Log average weekly wage</td>
-      <td>College present (0/1)</td>
+      <td>Extensive margin (0/1)</td>
       <td>indicator</td>
       <td>-0.0060 (0.0070)</td>
       <td>[-0.0196, 0.0077]</td>
@@ -525,9 +525,9 @@
       <td>HC1</td>
     </tr>
     <tr>
-      <td>Wage intensity among college counties</td>
+      <td>Wage intensive margin among college counties</td>
       <td>Log average weekly wage</td>
-      <td>Intensity among college counties (1 pp)</td>
+      <td>Intensive margin among college counties (1 pp)</td>
       <td>raw</td>
       <td>0.0007* (0.0004)</td>
       <td>[-0.0000, 0.0015]</td>
@@ -538,9 +538,9 @@
       <td>HC1</td>
     </tr>
     <tr>
-      <td>Wage two-part decomposition</td>
+      <td>Wage joint extensive/intensive model</td>
       <td>Log average weekly wage</td>
-      <td>College present (0/1)</td>
+      <td>Extensive margin (0/1)</td>
       <td>indicator</td>
       <td>-0.0063 (0.0070)</td>
       <td>[-0.0201, 0.0074]</td>
@@ -551,9 +551,9 @@
       <td>HC1</td>
     </tr>
     <tr>
-      <td>Wage two-part decomposition</td>
+      <td>Wage joint extensive/intensive model</td>
       <td>Log average weekly wage</td>
-      <td>Conditional intensity (1 pp from positive-county mean)</td>
+      <td>Intensive margin (1 pp from positive-county mean)</td>
       <td>positive-county centered</td>
       <td>0.0003 (0.0004)</td>
       <td>[-0.0005, 0.0010]</td>
@@ -564,9 +564,9 @@
       <td>HC1</td>
     </tr>
     <tr>
-      <td>Wage two-part (state-clustered SE)</td>
+      <td>Wage joint model (state-clustered SE)</td>
       <td>Log average weekly wage</td>
-      <td>College present (0/1)</td>
+      <td>Extensive margin (0/1)</td>
       <td>indicator</td>
       <td>-0.0063 (0.0091)</td>
       <td>[-0.0242, 0.0116]</td>
@@ -577,9 +577,9 @@
       <td>cluster_state</td>
     </tr>
     <tr>
-      <td>Wage two-part (state-clustered SE)</td>
+      <td>Wage joint model (state-clustered SE)</td>
       <td>Log average weekly wage</td>
-      <td>Conditional intensity (1 pp from positive-county mean)</td>
+      <td>Intensive margin (1 pp from positive-county mean)</td>
       <td>positive-county centered</td>
       <td>0.0003 (0.0004)</td>
       <td>[-0.0005, 0.0011]</td>
@@ -590,9 +590,9 @@
       <td>cluster_state</td>
     </tr>
     <tr>
-      <td>Wage two-part winsorized intensity</td>
+      <td>Wage joint model, winsorized intensity</td>
       <td>Log average weekly wage</td>
-      <td>College present (0/1)</td>
+      <td>Extensive margin (0/1)</td>
       <td>indicator</td>
       <td>-0.0064 (0.0070)</td>
       <td>[-0.0202, 0.0074]</td>
@@ -603,9 +603,9 @@
       <td>HC1</td>
     </tr>
     <tr>
-      <td>Wage two-part winsorized intensity</td>
+      <td>Wage joint model, winsorized intensity</td>
       <td>Log average weekly wage</td>
-      <td>Conditional intensity, winsorized (1 pp from positive-county mean)</td>
+      <td>Intensive margin, winsorized (1 pp from positive-county mean)</td>
       <td>winsorized positive-county centered</td>
       <td>0.0004 (0.0005)</td>
       <td>[-0.0005, 0.0013]</td>

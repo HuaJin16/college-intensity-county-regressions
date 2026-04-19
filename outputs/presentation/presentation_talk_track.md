@@ -1,7 +1,7 @@
 # Presentation Talk Track
 
 ## Open
-- We study 3,222 counties and ask a simple question: do counties with more college activity tend to have higher rents and higher wages?
+- We study 3,144 counties and ask a simple question: do counties with more college activity tend to have higher rents and higher wages?
 - About 44.5% of counties have measured college enrollment, so separating presence from size matters empirically.
 
 ## Baseline story
@@ -9,9 +9,9 @@
 - In the pooled baseline wage model, the estimate is only about 0.01% per +1 pp and is statistically weak (p=0.814).
 
 ## Main interpretation
-- The rent result is mostly an intensive-margin story: simple college presence is close to zero, but larger college footprints inside college counties are associated with higher rents.
-- In other words, crossing from no college to an average college county does not move rent much after controls; moving from a smaller to a larger college county does.
-- The wage result is much weaker: in the pooled two-part specification, neither the presence term nor the conditional intensity term is precise.
+- The rent result is mostly an intensive-margin story: the extensive margin is close to zero, but larger college footprints inside college counties are associated with higher rents.
+- In other words, the extensive-margin shift from no college presence to average positive college presence does not move rent much after controls; the intensive margin from a smaller to a larger college county does.
+- The wage result is much weaker: in the joint extensive/intensive specification, neither the extensive-margin term nor the intensive-margin term is precise.
 - The only wage signal is inside the college-county subsample, where the intensive-margin estimate is modestly positive, so I would describe the wage evidence as suggestive but not robust.
 
 ## Close

@@ -47,16 +47,16 @@ SPEC_LABELS = {
     "baseline_wage_hc1": "Wage baseline (HC1)",
     "wage_cluster_state": "Wage baseline (state-clustered SE)",
     "wage_winsorized_intensity": "Wage winsorized intensity",
-    "rent_extensive_hc1": "Rent presence only (HC1)",
-    "rent_intensive_positive_hc1": "Rent intensity among college counties",
-    "rent_two_part_hc1": "Rent two-part decomposition",
-    "rent_two_part_cluster_state": "Rent two-part (state-clustered SE)",
-    "rent_two_part_winsorized_intensity": "Rent two-part winsorized intensity",
-    "wage_extensive_hc1": "Wage presence only (HC1)",
-    "wage_intensive_positive_hc1": "Wage intensity among college counties",
-    "wage_two_part_hc1": "Wage two-part decomposition",
-    "wage_two_part_cluster_state": "Wage two-part (state-clustered SE)",
-    "wage_two_part_winsorized_intensity": "Wage two-part winsorized intensity",
+    "rent_extensive_hc1": "Rent extensive margin (HC1)",
+    "rent_intensive_positive_hc1": "Rent intensive margin among college counties",
+    "rent_two_part_hc1": "Rent joint extensive/intensive model",
+    "rent_two_part_cluster_state": "Rent joint model (state-clustered SE)",
+    "rent_two_part_winsorized_intensity": "Rent joint model, winsorized intensity",
+    "wage_extensive_hc1": "Wage extensive margin (HC1)",
+    "wage_intensive_positive_hc1": "Wage intensive margin among college counties",
+    "wage_two_part_hc1": "Wage joint extensive/intensive model",
+    "wage_two_part_cluster_state": "Wage joint model (state-clustered SE)",
+    "wage_two_part_winsorized_intensity": "Wage joint model, winsorized intensity",
 }
 
 OUTCOME_LABELS = {
@@ -67,9 +67,9 @@ OUTCOME_LABELS = {
 TERM_LABELS = {
     "college_intensity_pct": "College intensity (1 pp)",
     "college_intensity_pct_w": "College intensity, winsorized (1 pp)",
-    "has_college": "College present (0/1)",
-    "college_intensity_pct_positive_centered": "Conditional intensity (1 pp from positive-county mean)",
-    "college_intensity_pct_positive_winsorized_centered": "Conditional intensity, winsorized (1 pp from positive-county mean)",
+    "has_college": "Extensive margin (0/1)",
+    "college_intensity_pct_positive_centered": "Intensive margin (1 pp from positive-county mean)",
+    "college_intensity_pct_positive_winsorized_centered": "Intensive margin, winsorized (1 pp from positive-county mean)",
 }
 
 TERM_ORDER = {
@@ -82,23 +82,23 @@ TERM_ORDER = {
 
 COMPARISON_PLAN = {
     "ln_median_gross_rent": [
-        ("Baseline pooled intensity", "baseline_rent_hc1", "college_intensity_pct"),
-        ("Presence only", "rent_extensive_hc1", "has_college"),
+        ("Pooled comparison", "baseline_rent_hc1", "college_intensity_pct"),
+        ("Extensive only", "rent_extensive_hc1", "has_college"),
         ("Intensive only", "rent_intensive_positive_hc1", "college_intensity_pct"),
-        ("Two-part presence", "rent_two_part_hc1", "has_college"),
+        ("Joint extensive", "rent_two_part_hc1", "has_college"),
         (
-            "Two-part intensity",
+            "Joint intensive",
             "rent_two_part_hc1",
             "college_intensity_pct_positive_centered",
         ),
     ],
     "ln_avg_weekly_wage": [
-        ("Baseline pooled intensity", "baseline_wage_hc1", "college_intensity_pct"),
-        ("Presence only", "wage_extensive_hc1", "has_college"),
+        ("Pooled comparison", "baseline_wage_hc1", "college_intensity_pct"),
+        ("Extensive only", "wage_extensive_hc1", "has_college"),
         ("Intensive only", "wage_intensive_positive_hc1", "college_intensity_pct"),
-        ("Two-part presence", "wage_two_part_hc1", "has_college"),
+        ("Joint extensive", "wage_two_part_hc1", "has_college"),
         (
-            "Two-part intensity",
+            "Joint intensive",
             "wage_two_part_hc1",
             "college_intensity_pct_positive_centered",
         ),
@@ -181,7 +181,7 @@ def build_key_coefficients(
     key.loc[
         key["spec"].isin(MARGIN_SPEC_ORDER) & key["term"].eq("college_intensity_pct"),
         "term_label",
-    ] = "Intensity among college counties (1 pp)"
+    ] = "Intensive margin among college counties (1 pp)"
 
     sample_cols = [
         col
@@ -274,22 +274,22 @@ def format_effect_cell(row: pd.Series | None) -> str:
 
 
 def comparison_takeaway(outcome: str, cells: dict[str, pd.Series | None]) -> str:
-    presence = cells.get("Presence only")
+    presence = cells.get("Extensive only")
     intensive_only = cells.get("Intensive only")
-    two_part_presence = cells.get("Two-part presence")
-    two_part_intensity = cells.get("Two-part intensity")
+    two_part_presence = cells.get("Joint extensive")
+    two_part_intensity = cells.get("Joint intensive")
 
     if outcome == "ln_median_gross_rent":
         if two_part_intensity is not None and float(two_part_intensity["p_value"]) < 0.05:
             if two_part_presence is not None and float(two_part_presence["p_value"]) >= 0.10:
-                return "Scale matters more than simple presence."
+                return "The intensive margin matters more than the extensive margin."
         if intensive_only is not None and float(intensive_only["p_value"]) < 0.05:
-            return "Rent rises mainly with larger college footprints."
+            return "Rent rises mainly on the intensive margin."
         return "Rent evidence is mixed across the margins."
 
     if intensive_only is not None and float(intensive_only["p_value"]) < 0.05:
         if two_part_intensity is not None and float(two_part_intensity["p_value"]) >= 0.10:
-            return "Any wage signal is limited to college counties only."
+            return "Any wage signal is limited to the intensive margin within college counties."
     if presence is not None and float(presence["p_value"]) >= 0.10:
         return "No robust countywide wage premium shows up."
     return "Wage evidence stays weak in pooled models."
@@ -324,18 +324,152 @@ def build_margin_comparison(intensity_key: pd.DataFrame, margin_key: pd.DataFram
             )
 
         comparison_rows.append(
+                {
+                    "Outcome": OUTCOME_LABELS.get(outcome, outcome),
+                    "Pooled comparison": format_effect_cell(row_map.get("Pooled comparison")),
+                    "Extensive only (0/1)": format_effect_cell(row_map.get("Extensive only")),
+                    "Intensive only (+1 pp)": format_effect_cell(row_map.get("Intensive only")),
+                    "Joint extensive (0/1)": format_effect_cell(row_map.get("Joint extensive")),
+                    "Joint intensive (+1 pp)": format_effect_cell(row_map.get("Joint intensive")),
+                    "Presentation takeaway": comparison_takeaway(outcome, row_map),
+                }
+            )
+
+    return pd.DataFrame(comparison_rows), pd.DataFrame(plot_rows)
+
+
+def format_effect_with_p(row: pd.Series | None, include_per_pp: bool = True) -> str:
+    if row is None:
+        return "NA"
+
+    implied = float(row["implied_pct_change"])
+    p_text = fmt_p(float(row["p_value"]))
+    p_label = f"p {p_text}" if p_text.startswith("<") else f"p={p_text}"
+    if row["term"] == "has_college" or not include_per_pp:
+        return f"{implied:+.2f}% ({p_label})"
+    return f"{implied:+.2f}% per +1 pp ({p_label})"
+
+
+def format_coef_se(row: pd.Series | None) -> str:
+    if row is None:
+        return "NA"
+
+    stars = row.get("stars", "") or ""
+    return f"{fmt_num(float(row['coef']))}{stars} ({fmt_num(float(row['std_error']))})"
+
+
+def build_paper_baseline_table(intensity_key: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    for spec, outcome_label in [
+        ("baseline_rent_hc1", "Median gross rent"),
+        ("baseline_wage_hc1", "Average weekly wage"),
+    ]:
+        row = lookup_row(intensity_key, spec, "college_intensity_pct")
+        if row is None:
+            continue
+        rows.append(
             {
-                "Outcome": OUTCOME_LABELS.get(outcome, outcome),
-                "Baseline pooled intensity": format_effect_cell(row_map.get("Baseline pooled intensity")),
-                "Presence only (0/1)": format_effect_cell(row_map.get("Presence only")),
-                "Intensive only (+1 pp)": format_effect_cell(row_map.get("Intensive only")),
-                "Two-part presence (0/1)": format_effect_cell(row_map.get("Two-part presence")),
-                "Two-part intensity (+1 pp)": format_effect_cell(row_map.get("Two-part intensity")),
-                "Presentation takeaway": comparison_takeaway(outcome, row_map),
+                "Outcome": outcome_label,
+                "Coefficient on college intensity": f"{fmt_num(float(row['coef']))} ({fmt_num(float(row['std_error']))})",
+                "p-value": fmt_p(float(row["p_value"])),
+                "Approx. % change": f"{float(row['implied_pct_change']):+.2f}% per +1 pp",
+                "N": int(row["n_sample"]),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def build_paper_presence_size_table(margin_key: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    plans = [
+        ("Median gross rent", "rent_extensive_hc1", "rent_intensive_positive_hc1", "rent_two_part_hc1"),
+        ("Average weekly wage", "wage_extensive_hc1", "wage_intensive_positive_hc1", "wage_two_part_hc1"),
+    ]
+    for outcome_label, extensive_spec, intensive_spec, joint_spec in plans:
+        presence_only = lookup_row(margin_key, extensive_spec, "has_college")
+        size_only = lookup_row(margin_key, intensive_spec, "college_intensity_pct")
+        joint_presence = lookup_row(margin_key, joint_spec, "has_college")
+        joint_size = lookup_row(margin_key, joint_spec, "college_intensity_pct_positive_centered")
+        takeaway = ""
+        if outcome_label == "Median gross rent":
+            takeaway = "The intensive margin matters more than the extensive margin for rent."
+        else:
+            takeaway = "Neither the extensive nor the intensive margin shows a strong pooled wage relationship."
+
+        rows.append(
+            {
+                "Outcome": outcome_label,
+                "Extensive margin only": format_coef_se(presence_only),
+                "Intensive margin only": format_coef_se(size_only),
+                "Extensive margin in joint model": format_coef_se(joint_presence),
+                "Intensive margin in joint model": format_coef_se(joint_size),
+                "Main takeaway": takeaway,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def build_paper_robustness_table(intensity_key: pd.DataFrame, margin_key: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+
+    def add_single(outcome: str, check: str, row: pd.Series | None) -> None:
+        if row is None:
+            return
+        rows.append(
+            {
+                "Outcome": outcome,
+                "Robustness check": check,
+                "Result": format_coef_se(row),
             }
         )
 
-    return pd.DataFrame(comparison_rows), pd.DataFrame(plot_rows)
+    def add_joint(outcome: str, check: str, presence_row: pd.Series | None, size_row: pd.Series | None) -> None:
+        if presence_row is None or size_row is None:
+            return
+        rows.append(
+            {
+                "Outcome": outcome,
+                "Robustness check": check,
+                "Result": (
+                    f"extensive {format_coef_se(presence_row)}; "
+                    f"intensive {format_coef_se(size_row)}"
+                ),
+            }
+        )
+
+    add_single("Median gross rent", "State-clustered standard errors", lookup_row(intensity_key, "rent_cluster_state", "college_intensity_pct"))
+    add_single("Median gross rent", "Add renter share", lookup_row(intensity_key, "rent_plus_renter_share", "college_intensity_pct"))
+    add_single("Median gross rent", "Add bachelor's degree share", lookup_row(intensity_key, "rent_plus_ba_share", "college_intensity_pct"))
+    add_single("Median gross rent", "Outlier-adjusted college intensity", lookup_row(intensity_key, "rent_winsorized_intensity", "college_intensity_pct_w"))
+    add_joint(
+        "Median gross rent",
+        "Joint model with state-clustered standard errors",
+        lookup_row(margin_key, "rent_two_part_cluster_state", "has_college"),
+        lookup_row(margin_key, "rent_two_part_cluster_state", "college_intensity_pct_positive_centered"),
+    )
+    add_joint(
+        "Median gross rent",
+        "Joint model with outlier-adjusted intensive term",
+        lookup_row(margin_key, "rent_two_part_winsorized_intensity", "has_college"),
+        lookup_row(margin_key, "rent_two_part_winsorized_intensity", "college_intensity_pct_positive_winsorized_centered"),
+    )
+
+    add_single("Average weekly wage", "State-clustered standard errors", lookup_row(intensity_key, "wage_cluster_state", "college_intensity_pct"))
+    add_single("Average weekly wage", "Outlier-adjusted college intensity", lookup_row(intensity_key, "wage_winsorized_intensity", "college_intensity_pct_w"))
+    add_joint(
+        "Average weekly wage",
+        "Joint model with state-clustered standard errors",
+        lookup_row(margin_key, "wage_two_part_cluster_state", "has_college"),
+        lookup_row(margin_key, "wage_two_part_cluster_state", "college_intensity_pct_positive_centered"),
+    )
+    add_joint(
+        "Average weekly wage",
+        "Joint model with outlier-adjusted intensive term",
+        lookup_row(margin_key, "wage_two_part_winsorized_intensity", "has_college"),
+        lookup_row(margin_key, "wage_two_part_winsorized_intensity", "college_intensity_pct_positive_winsorized_centered"),
+    )
+
+    return pd.DataFrame(rows)
 
 
 def write_results_brief(
@@ -394,13 +528,13 @@ def write_results_brief(
         )
     if rent_presence is not None and rent_conditional is not None:
         lines.append(
-            "- Rent decomposition: once presence and size are separated, the extensive-margin indicator is near zero "
-            f"(beta={fmt_num(rent_presence['coef'])}, {fmt_p_text(float(rent_presence['p_value']))}), while the conditional intensity term stays positive "
+            "- Rent extensive/intensive results: once the two margins are separated, the extensive-margin indicator is near zero "
+            f"(beta={fmt_num(rent_presence['coef'])}, {fmt_p_text(float(rent_presence['p_value']))}), while the intensive-margin term stays positive "
             f"(beta={fmt_num(rent_conditional['coef'])}, {fmt_p_text(float(rent_conditional['p_value']))})."
         )
     if wage_presence is not None and wage_conditional is not None and wage_intensive_only is not None:
         lines.append(
-            "- Wage decomposition: the pooled two-part model shows little evidence for either college presence or conditional intensity, "
+            "- Wage extensive/intensive results: the joint model shows little evidence for either the extensive or intensive margin, "
             f"but the college-only intensive spec is modestly positive (beta={fmt_num(wage_intensive_only['coef'])}, {fmt_p_text(float(wage_intensive_only['p_value']))})."
         )
 
@@ -422,7 +556,7 @@ def write_results_brief(
         lines.extend(
             [
                 "",
-                "## Margin Decomposition",
+                "## Extensive And Intensive Margins",
                 "",
                 "| Specification | Outcome | Term | Coef (SE) | 95% CI | p-value | N | Sample |",
                 "|---|---|---|---:|---:|---:|---:|---|",
@@ -500,27 +634,27 @@ def make_coefficient_plot(path: Path, key: pd.DataFrame) -> None:
 
 def make_margin_comparison_plot(path: Path, plot_df: pd.DataFrame) -> None:
     colors = {
-        "Baseline pooled intensity": "#0f766e",
-        "Presence only": "#1d4ed8",
+        "Pooled comparison": "#0f766e",
+        "Extensive only": "#1d4ed8",
         "Intensive only": "#b45309",
-        "Two-part presence": "#7c3aed",
-        "Two-part intensity": "#dc2626",
+        "Joint extensive": "#7c3aed",
+        "Joint intensive": "#dc2626",
     }
     markers = {
-        "Baseline pooled intensity": "D",
-        "Presence only": "s",
+        "Pooled comparison": "D",
+        "Extensive only": "s",
         "Intensive only": "o",
-        "Two-part presence": "^",
-        "Two-part intensity": "o",
+        "Joint extensive": "^",
+        "Joint intensive": "o",
     }
 
     outcome_order = ["ln_median_gross_rent", "ln_avg_weekly_wage"]
     label_order = [
-        "Baseline pooled intensity",
-        "Presence only",
+        "Pooled comparison",
+        "Extensive only",
         "Intensive only",
-        "Two-part presence",
-        "Two-part intensity",
+        "Joint extensive",
+        "Joint intensive",
     ]
 
     fig, axes = plt.subplots(1, 2, figsize=(15, 8), sharex=True)
@@ -563,7 +697,7 @@ def make_margin_comparison_plot(path: Path, plot_df: pd.DataFrame) -> None:
         ax.set_title(OUTCOME_LABELS.get(outcome, outcome))
         ax.grid(axis="x", color="#d6dde6", linewidth=0.8, alpha=0.7)
 
-    fig.suptitle("Baseline vs presence vs intensity decomposition", y=0.98)
+    fig.suptitle("Pooled comparison versus extensive and intensive margins", y=0.98)
     fig.tight_layout(rect=[0, 0, 1, 0.96])
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=180)
@@ -636,7 +770,7 @@ def write_talk_track(
         "# Presentation Talk Track",
         "",
         "## Open",
-        "- We study 3,222 counties and ask a simple question: do counties with more college activity tend to have higher rents and higher wages?",
+        f"- We study {int(data_summary['county_total']):,} counties and ask a simple question: do counties with more college activity tend to have higher rents and higher wages?",
         f"- About {data_summary['college_share']:.1f}% of counties have measured college enrollment, so separating presence from size matters empirically.",
         "",
         "## Baseline story",
@@ -660,14 +794,14 @@ def write_talk_track(
 
     if rent_presence is not None and rent_intensity is not None:
         lines.append(
-            "- The rent result is mostly an intensive-margin story: simple college presence is close to zero, but larger college footprints inside college counties are associated with higher rents."
+            "- The rent result is mostly an intensive-margin story: the extensive margin is close to zero, but larger college footprints inside college counties are associated with higher rents."
         )
         lines.append(
-            "- In other words, crossing from no college to an average college county does not move rent much after controls; moving from a smaller to a larger college county does."
+            "- In other words, the extensive-margin shift from no college presence to average positive college presence does not move rent much after controls; the intensive margin from a smaller to a larger college county does."
         )
     if wage_presence is not None and wage_intensity is not None:
         lines.append(
-            "- The wage result is much weaker: in the pooled two-part specification, neither the presence term nor the conditional intensity term is precise."
+            "- The wage result is much weaker: in the joint extensive/intensive specification, neither the extensive-margin term nor the intensive-margin term is precise."
         )
     if wage_intensive_only is not None:
         lines.append(
@@ -686,6 +820,167 @@ def write_talk_track(
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def add_html_table_caption(table_html: str, caption: str) -> str:
+    table_open_end = table_html.find(">")
+    if table_open_end == -1:
+        raise ValueError("Expected opening table tag in HTML output.")
+    return f"{table_html[:table_open_end + 1]}\n  <caption>{caption}</caption>{table_html[table_open_end + 1:]}"
+
+
+def write_paper_results_html(
+    path: Path,
+    baseline_table: pd.DataFrame,
+    presence_size_table: pd.DataFrame,
+    robustness_table: pd.DataFrame,
+    data_summary: dict[str, object],
+) -> None:
+    generated_on = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
+    scope_label = str(data_summary["scope_label"])
+
+    baseline_html = add_html_table_caption(
+        baseline_table.to_html(index=False, border=0, classes="results-table"),
+        "Table 5.1. Pooled Associations of College Intensity with County Rent and Wage Outcomes",
+    )
+    presence_size_html = add_html_table_caption(
+        presence_size_table.to_html(index=False, border=0, classes="results-table"),
+        "Table 5.2. Extensive- and Intensive-Margin Associations of College Presence and College Size with County Rent and Wage Outcomes",
+    )
+    robustness_html = add_html_table_caption(
+        robustness_table.to_html(index=False, border=0, classes="results-table"),
+        "Table 5.3. Robustness Checks for College-Intensity Associations with County Rent and Wage Outcomes",
+    )
+
+    html = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>County College Extensive And Intensive Margin Results</title>
+  <style>
+    :root {{
+      --bg: #f7f4ef;
+      --panel: #ffffff;
+      --ink: #20242a;
+      --muted: #66717d;
+      --accent: #8a3b12;
+      --border: #d8dedf;
+      --header: #f3f7f7;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      font-family: "Georgia", "Times New Roman", serif;
+      color: var(--ink);
+      background: linear-gradient(180deg, #fcfaf7 0%, var(--bg) 100%);
+      line-height: 1.5;
+    }}
+    .wrap {{
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 18px 40px;
+    }}
+    .hero {{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-top: 6px solid var(--accent);
+      border-radius: 14px;
+      padding: 22px 24px;
+      box-shadow: 0 6px 18px rgba(40, 45, 50, 0.06);
+    }}
+    h1, h2 {{
+      margin: 0 0 10px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }}
+    h1 {{ font-size: 30px; }}
+    h2 {{ font-size: 22px; }}
+    p {{ margin: 8px 0; }}
+    .grid {{
+      display: grid;
+      gap: 18px;
+      margin-top: 18px;
+    }}
+    .card {{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 4px 12px rgba(40, 45, 50, 0.05);
+    }}
+    .results-table {{
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }}
+    .results-table caption {{
+      caption-side: top;
+      text-align: left;
+      font-weight: 700;
+      font-size: 15px;
+      margin-bottom: 10px;
+      color: var(--ink);
+    }}
+    .results-table th,
+    .results-table td {{
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }}
+    .results-table th {{
+      background: var(--header);
+      color: #24323a;
+      font-weight: 700;
+    }}
+    .note {{
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }}
+    @media (max-width: 820px) {{
+      .wrap {{ padding: 14px; }}
+      h1 {{ font-size: 24px; }}
+      h2 {{ font-size: 20px; }}
+      .results-table {{ font-size: 13px; }}
+    }}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>County College Extensive And Intensive Margin Results</h1>
+      <p>Condensed results tables aligned with the paper's results section.</p>
+      <p>Cross-sectional county-level regressions for rent and wage outcomes ({scope_label}). Generated: {generated_on}</p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Pooled Comparison Estimates</h2>
+        {baseline_html}
+        <p class="note">These full-sample models provide a compact reference point, but they combine extensive-margin and intensive-margin variation into one coefficient.</p>
+      </article>
+
+      <article class="card">
+        <h2>Extensive And Intensive Margin Results</h2>
+        {presence_size_html}
+        <p class="note">Coefficients are shown with standard errors in parentheses. The first two columns show the extensive-only and intensive-only results, while the joint-model columns show the extensive and intensive margins estimated together in the same regression. * p&lt;0.10, ** p&lt;0.05, *** p&lt;0.01.</p>
+      </article>
+
+      <article class="card">
+        <h2>Robustness Checks</h2>
+        {robustness_html}
+        <p class="note">Coefficients are shown with standard errors in parentheses. State-clustered rows change the standard errors, and outlier-adjusted rows reduce the influence of unusually large college-intensity values. * p&lt;0.10, ** p&lt;0.05, *** p&lt;0.01. All estimates remain associational, not causal.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
+"""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(html, encoding="utf-8")
 
 
 def write_presentation_html(
@@ -728,11 +1023,11 @@ def write_presentation_html(
         )
     if rent_presence is not None and rent_conditional is not None:
         takeaway_lines.append(
-            "<li><strong>Rent two-part:</strong> the college-presence indicator is near zero once college size is separated out, while the conditional intensity term remains positive and precise.</li>"
+            "<li><strong>Rent extensive/intensive results:</strong> the extensive-margin indicator is near zero once the two margins are separated, while the intensive-margin term remains positive and precise.</li>"
         )
     if wage_presence is not None and wage_conditional is not None:
         takeaway_lines.append(
-            "<li><strong>Wage two-part:</strong> neither the presence indicator nor the pooled conditional-intensity term is precise in the full-sample decomposition.</li>"
+            "<li><strong>Wage extensive/intensive results:</strong> neither the extensive-margin indicator nor the pooled intensive-margin term is precise in the full-sample joint model.</li>"
         )
     takeaway_lines.append(
         "<li><strong>Interpretation:</strong> estimates are associational (cross-sectional), not causal.</li>"
@@ -939,7 +1234,7 @@ def write_presentation_html(
       </article>
 
       <article class=\"card\">
-        <h2>Margin Decomposition</h2>
+        <h2>Extensive And Intensive Margins</h2>
         {margin_html}
       </article>
     </section>
@@ -980,6 +1275,9 @@ def main() -> None:
         key_specs=MARGIN_SPEC_ORDER,
     )
     comparison_table, comparison_plot_df = build_margin_comparison(intensity_key, margin_key)
+    paper_baseline_table = build_paper_baseline_table(intensity_key)
+    paper_presence_size_table = build_paper_presence_size_table(margin_key)
+    paper_robustness_table = build_paper_robustness_table(intensity_key, margin_key)
     data_summary = load_data_summary(args.data)
 
     args.outdir.mkdir(parents=True, exist_ok=True)
@@ -1040,6 +1338,13 @@ def main() -> None:
         comparison_table,
         data_summary,
     )
+    write_paper_results_html(
+        args.outdir / "paper_results_tables.html",
+        paper_baseline_table,
+        paper_presence_size_table,
+        paper_robustness_table,
+        data_summary,
+    )
 
     print(f"Saved presentation pack in: {args.outdir}")
     print(f"- {args.outdir / 'college_intensity_key_coefficients.csv'}")
@@ -1051,6 +1356,7 @@ def main() -> None:
     print(f"- {args.outdir / 'margin_comparison_plot.png'}")
     print(f"- {args.outdir / 'presentation_talk_track.md'}")
     print(f"- {args.outdir / 'presentation_summary.html'}")
+    print(f"- {args.outdir / 'paper_results_tables.html'}")
 
 
 if __name__ == "__main__":
